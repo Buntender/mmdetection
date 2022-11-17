@@ -1,0 +1,20 @@
+ln -s /media/data1/lkz/data/coco2017 /media/data2/lkz/mmdetection_stable/data/coco
+ln -s /media/data1/lkz/data/VOCdevkit/ /media/data2/lkz/mmdetection_stable/data/VOCdevkit
+
+source /home/liukezhao/miniconda3/bin/activate pythonformmdetection
+
+cd /media/data2/lkz/mmdetection/
+export PYTHONPATH=/media/data2/lkz/mmdetection/
+export CUDA_VISIBLE_DEVICES=2
+/home/liukezhao/miniconda3/envs/pythonformmdetection/bin/python3 tools/train.py configs/ssd/ssd300_coco.py
+/home/liukezhao/miniconda3/envs/pythonformmdetection/bin/python3 tools/train.py configs/ssd/ssd300_voc.py
+/home/liukezhao/miniconda3/envs/pythonformmdetection/bin/python3 tools/train.py configs/ssd/ssd300_voc_FreeRobust.py
+/home/liukezhao/miniconda3/envs/pythonformmdetection/bin/python3 tools/mytest.py configs/ssd/ssd300_voc_FreeRobust.py work_dirs/ssd300_voc_FreeRobust/epoch_10.pth --eval mAP
+/home/liukezhao/miniconda3/envs/pythonformmdetection/bin/python3 tools/mytest.py configs/ssd/ssd300_voc_FreeRobust_cleanval.py work_dirs/ssd300_voc_FreeRobust/epoch_13.pth --eval mAP
+fdisk -l
+
+sudo mount /dev/sda /media/data0 3.7 TiB, 4000787030016 bytes
+sudo mount /dev/sdc /media/data1 3.7 TiB, 3999688294400 bytes
+sudo mount /dev/sdd /media/data2 2.2 TiB, 2399913639936 bytes
+
+sudo umount /media/data0
