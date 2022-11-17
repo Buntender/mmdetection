@@ -12,14 +12,13 @@ from mmcv.cnn import fuse_conv_bn
 from mmcv.runner import (get_dist_info, init_dist, load_checkpoint,
                          wrap_fp16_model)
 
-from mmdet.apis import multi_gpu_test, single_gpu_test
+from mmdet.apis import multi_gpu_test
 from mmdet.datasets import (build_dataloader, build_dataset,
                             replace_ImageToTensor)
 from mmdet.models import build_detector
 from mmdet.utils import (build_ddp, build_dp, compat_cfg, get_device,
                          replace_cfg_vals, setup_multi_processes,
                          update_data_root)
-
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -118,7 +117,7 @@ def parse_args():
     return args
 
 
-def main():
+def main(single_gpu_test):
     args = parse_args()
 
     assert args.out or args.eval or args.format_only or args.show \
@@ -218,8 +217,13 @@ def main():
     data_loader = build_dataloader(dataset, **test_loader_cfg)
 
     # build the model and load checkpoint
-    cfg.model.train_cfg = None
-    model = build_detector(cfg.model, test_cfg=cfg.get('test_cfg'))
+
+    # cfg.model.train_cfg = None
+    # model = build_detector(cfg.model, test_cfg=cfg.get('test_cfg'))
+
+    model = build_detector(cfg.model, train_cfg=cfg.get('train_cfg'),test_cfg=cfg.get('test_cfg'))
+
+
     fp16_cfg = cfg.get('fp16', None)
     if fp16_cfg is not None:
         wrap_fp16_model(model)
@@ -272,4 +276,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main(single_gpu_test)
