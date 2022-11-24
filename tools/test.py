@@ -19,6 +19,7 @@ from mmdet.models import build_detector
 from mmdet.utils import (build_ddp, build_dp, compat_cfg, get_device,
                          replace_cfg_vals, setup_multi_processes,
                          update_data_root)
+import robustdetector.apis
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -275,5 +276,5 @@ def main(single_gpu_test):
                 mmcv.dump(metric_dict, json_file)
 
 
-if __name__ == '__main__':
-    main(single_gpu_test)
+# if __name__ == '__main__':
+#     main(single_gpu_test)

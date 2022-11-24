@@ -1,5 +1,4 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-import functools
 import os.path as osp
 import pickle
 import shutil
@@ -13,13 +12,13 @@ from mmcv.image import tensor2imgs
 from mmcv.runner import get_dist_info
 
 from mmdet.core import encode_mask_results
+from robustdetector.apis.daedalus_loss import DaedalusLoss, outputdecode
 
-def _robust_single_gpu_test(model,
+def daedalus_single_gpu_test(model,
                     data_loader,
                     show=False,
                     out_dir=None,
-                    show_score_thr=0.3,
-                    backpropfunc = None):
+                    show_score_thr=0.3):
     model.eval()
     results = []
     dataset = data_loader.dataset
@@ -27,19 +26,18 @@ def _robust_single_gpu_test(model,
     prog_bar = mmcv.ProgressBar(len(dataset))
     for i, data in enumerate(data_loader):
         gts = data_loader.dataset.get_ann_info(i)
-        gts = bboxresize(data, gts)
         perturb = data['img'][0].new(data['img'][0].size()).uniform_(-2, 2)
         ori = data['img'][0].clone().detach()
         for r in range(10):
             data['img'][0] = ori + perturb
             data['img'][0].detach_()
             data['img'][0].requires_grad_()
-            loss = model(img=data['img'][0], img_metas=data['img_metas'][0], gt_bboxes=[torch.tensor(gts['bboxes'])], gt_labels=[torch.tensor(gts['labels'])])
 
-            backpropfunc(loss, model)
+            datawrapper = lambda x: {'img': x, 'img_metas': data['img_metas'][0], 'return_raw': True}
+            pred = DaedalusLoss.forward(outputdecode(model, model(**datawrapper(data['img'][0]))), None)
+            pred.backward()
 
             grad = data['img'][0].grad.clone()
-            # perturb += 8 * grad.sign()
             perturb += 2 * grad.sign()
             perturb = perturb.clamp(-8, 8)
             perturb.detach_()
@@ -97,16 +95,3 @@ def _robust_single_gpu_test(model,
         for _ in range(batch_size):
             prog_bar.update()
     return results
-
-def bboxresize(data, gts):
-    size = data['img_metas'][0].data[0][0]['ori_shape']
-    for i in range(len(gts['bboxes'])):
-        gts['bboxes'][i][0] = gts['bboxes'][i][0] * 300 / size[1]
-        gts['bboxes'][i][1] = gts['bboxes'][i][1] * 300 / size[0]
-        gts['bboxes'][i][2] = gts['bboxes'][i][2] * 300 / size[1]
-        gts['bboxes'][i][3] = gts['bboxes'][i][3] * 300 / size[0]
-    return gts
-
-robust_single_gpu_test = functools.partial(_robust_single_gpu_test, backpropfunc= lambda loss, model : model.module._parse_losses(loss)[0].backward())
-clsloss_single_gpu_test = functools.partial(_robust_single_gpu_test, backpropfunc= lambda loss, model : loss['loss_cls'][0].backward())
-bboxloss_single_gpu_test = functools.partial(_robust_single_gpu_test, backpropfunc= lambda loss, model : loss['loss_bbox'][0].backward())

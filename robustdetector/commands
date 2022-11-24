@@ -3,14 +3,21 @@ ln -s /media/data1/lkz/data/VOCdevkit/ /media/data2/lkz/mmdetection_stable/data/
 
 source /home/liukezhao/miniconda3/bin/activate pythonformmdetection
 
-cd /media/data2/lkz/mmdetection/
-export PYTHONPATH=/media/data2/lkz/mmdetection/
-export CUDA_VISIBLE_DEVICES=2
-/home/liukezhao/miniconda3/envs/pythonformmdetection/bin/python3 tools/train.py configs/ssd/ssd300_coco.py
-/home/liukezhao/miniconda3/envs/pythonformmdetection/bin/python3 tools/train.py configs/ssd/ssd300_voc.py
-/home/liukezhao/miniconda3/envs/pythonformmdetection/bin/python3 tools/train.py configs/ssd/ssd300_voc_FreeRobust.py
-/home/liukezhao/miniconda3/envs/pythonformmdetection/bin/python3 tools/mytest.py configs/ssd/ssd300_voc_FreeRobust.py work_dirs/ssd300_voc_FreeRobust/epoch_10.pth --eval mAP
-/home/liukezhao/miniconda3/envs/pythonformmdetection/bin/python3 tools/mytest.py configs/ssd/ssd300_voc_FreeRobust_cleanval.py work_dirs/ssd300_voc_FreeRobust/epoch_13.pth --eval mAP
+cd /media/data2/lkz/mmdetection_stable/
+export PYTHONPATH=/media/data2/lkz/mmdetection_stable/
+export CUDA_VISIBLE_DEVICES=5
+/home/liukezhao/miniconda3/envs/pythonformmdetection/bin/python3 tools/train.py robustdetector/configs/ssd300_voc_daedalus.py
+/home/liukezhao/miniconda3/envs/pythonformmdetection/bin/python3 tools/train.py robustdetector/configs/ssd300_voc.py
+/home/liukezhao/miniconda3/envs/pythonformmdetection/bin/python3 tools/train.py robustdetector/configs/ssd300_voc_FreeRobust.py
+
+/home/liukezhao/miniconda3/envs/pythonformmdetection/bin/python3 robustdetector/tools/robusttest.py robustdetector/configs/ssd300_voc.py work_dirs/ssd300_voc/epoch_24.pth --eval mAP
+/home/liukezhao/miniconda3/envs/pythonformmdetection/bin/python3 robustdetector/tools/bboxlosstest.py robustdetector/configs/ssd300_voc.py work_dirs/ssd300_voc/epoch_24.pth --eval mAP
+/home/liukezhao/miniconda3/envs/pythonformmdetection/bin/python3 robustdetector/tools/clslosstest.py robustdetector/configs/ssd300_voc.py work_dirs/ssd300_voc/epoch_24.pth --eval mAP
+/home/liukezhao/miniconda3/envs/pythonformmdetection/bin/python3 robustdetector/tools/stdtest.py robustdetector/configs/ssd300_voc.py work_dirs/ssd300_voc/epoch_24.pth --eval mAP
+
+
+/home/liukezhao/miniconda3/envs/pythonformmdetection/bin/python3 robustdetector/tools/daedalustest.py robustdetector/configs/ssd300_voc.py work_dirs/ssd300_voc/epoch_24.pth --eval mAP
+
 fdisk -l
 
 sudo mount /dev/sda /media/data0 3.7 TiB, 4000787030016 bytes

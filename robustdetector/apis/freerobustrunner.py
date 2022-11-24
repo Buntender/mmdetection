@@ -4,7 +4,9 @@ from typing import Any
 import time
 from mmcv.runner import OptimizerHook
 from mmcv.runner.hooks import HOOKS, Hook
-from typing import (Dict, List, Optional, Union)
+import logging
+from typing import (Any, Callable, Dict, List, Optional, Tuple, Union,
+                    no_type_check)
 import mmcv
 
 @RUNNERS.register_module()
@@ -19,8 +21,8 @@ class FreeRobustRunner(EpochBasedRunner):
         for i, data_batch in enumerate(self.data_loader):
             self.data_batch = data_batch
             self._inner_iter = i
-            perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-1, 1)
-            ori = self.data_batch['img'].data[0]
+            perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2)
+            ori = self.data_batch['img'].data[0].clone().detach()
             # for i in range(10):
             for i in range(max(min(self.epoch - 5, 10), 1)):
                 self.call_hook('before_train_iter')
@@ -33,7 +35,7 @@ class FreeRobustRunner(EpochBasedRunner):
                 self.outputs['loss'].backward()
 
                 grad = self.data_batch['img'].data[0].grad.clone()
-                perturb += grad.sign()
+                perturb += 2 * grad.sign()
                 perturb = perturb.clamp(-8, 8)
                 perturb.detach_()
 
@@ -55,8 +57,8 @@ class FreeRobustRunner(EpochBasedRunner):
             self._inner_iter = i
             self.call_hook('before_val_iter')
 
-            perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-1, 1)
-            ori = self.data_batch['img'].data[0]
+            perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2)
+            ori = self.data_batch['img'].data[0].clone().detach()
             for i in range(10):
                 self.data_batch['img'].data[0] = ori + perturb
                 self.data_batch['img'].data[0].detach_()
@@ -67,7 +69,7 @@ class FreeRobustRunner(EpochBasedRunner):
                 self.outputs['loss'].backward()
 
                 grad = self.data_batch['img'].data[0].grad.clone()
-                perturb += grad.sign()
+                perturb += 2 * grad.sign()
                 perturb = perturb.clamp(-8, 8)
                 perturb.detach_()
 

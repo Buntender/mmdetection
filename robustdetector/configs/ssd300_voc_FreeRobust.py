@@ -53,11 +53,11 @@ optimizer_config = dict(_delete_=True)
 custom_hooks = [
     dict(type='NumClassCheckHook'),
     dict(type='CheckInvalidLossHook', interval=50, priority='VERY_LOW')
-    # ,dict(type='AttackHook', priority='VERY_LOW')
 ]
 data = dict(
     samples_per_gpu=8,
     workers_per_gpu=4,
+    shuffle = False,
     train=dict(
         type='RepeatDataset',
         times=3,

@@ -6,6 +6,7 @@ _base_ = [
 dataset_type = 'VOCDataset'
 data_root = 'data/VOCdevkit/'
 model = dict(bbox_head = dict(num_classes = 20))
+runner = dict(type='CustomLossRobustRunner', custom_loss = 'DaedalusLoss', max_epochs=24)
 
 img_norm_cfg = dict(mean=[123.675, 116.28, 103.53], std=[1, 1, 1], to_rgb=True)
 train_pipeline = [
