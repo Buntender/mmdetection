@@ -37,12 +37,12 @@ export CUDA_VISIBLE_DEVICES=1
 /media/data4/lym/anaconda3/envs/lkz_mmdetection/bin/python3 /media/data4/lym/anaconda3/envs/lkz_mmdetection/lib/python3.7/site-packages/torch/distributed/launch.py --nproc_per_node=4 /media/data4/lkz/mmdetection_stable_on_28_allattacks/robustdetector/tools/robusttest.py /media/data4/lkz/mmdetection_stable_on_28_allattacks/robustdetector/configs/ssd300_voc_FreeRobust.py /media/data4/lkz/mmdetection_stable_on_28_allattacks/work_dirs/ssd300_voc_FreeRobust/epoch_48.pth --eval mAP --launcher pytorch
 
 #dist compare
-/media/data4/lym/anaconda3/envs/lkz_mmdetection/bin/python3 robustdetector/tools/getfeatures.py /media/data4/lkz/mmdetection_stable_on_28_allattacks/robustdetector/configs/ssd300_voc_FreeRobust.py /media/data4/lkz/mmdetection_stable_on_28_allattacks/work_dirs/ssd300_voc/epoch__epoch_.pth --eval mAP
-/media/data4/lym/anaconda3/envs/lkz_mmdetection/bin/python3 robustdetector/tools/getfeatures.py /media/data4/lkz/mmdetection_stable_on_28_allattacks/robustdetector/configs/ssd300_voc_FreeRobust.py /media/data4/lkz/mmdetection_stable_on_28_allattacks/work_dirs/ssd300_voc_train0/epoch__epoch_.pth --eval mAP
+# /media/data4/lym/anaconda3/envs/lkz_mmdetection/bin/python3 robustdetector/tools/getfeatures.py /media/data4/lkz/mmdetection_stable_on_28_allattacks/robustdetector/configs/ssd300_voc_FreeRobust.py /media/data4/lkz/mmdetection_stable_on_28_allattacks/work_dirs/ssd300_voc/epoch__epoch_.pth --eval mAP
+# /media/data4/lym/anaconda3/envs/lkz_mmdetection/bin/python3 robustdetector/tools/getfeatures.py /media/data4/lkz/mmdetection_stable_on_28_allattacks/robustdetector/configs/ssd300_voc_FreeRobust.py /media/data4/lkz/mmdetection_stable_on_28_allattacks/work_dirs/ssd300_voc_train0/epoch__epoch_.pth --eval mAP
 
-/media/data4/lym/anaconda3/envs/lkz_mmdetection/bin/python3 /media/data4/lym/anaconda3/envs/lkz_mmdetection/lib/python3.7/site-packages/torch/distributed/launch.py --nproc_per_node=4 /media/data4/lkz/mmdetection_stable_on_28_allattacks/robustdetector/tools/getfeatures.py /media/data4/lkz/mmdetection_stable_on_28_allattacks/robustdetector/configs/ssd300_voc_FreeRobust.py /media/data4/lkz/mmdetection_stable_on_28_allattacks/work_dirs/ssd300_voc/epoch_24.pth --eval mAP --launcher pytorch
+# /media/data4/lym/anaconda3/envs/lkz_mmdetection/bin/python3 /media/data4/lym/anaconda3/envs/lkz_mmdetection/lib/python3.7/site-packages/torch/distributed/launch.py --nproc_per_node=4 /media/data4/lkz/mmdetection_stable_on_28_allattacks/robustdetector/tools/getfeatures.py /media/data4/lkz/mmdetection_stable_on_28_allattacks/robustdetector/configs/ssd300_voc_FreeRobust.py /media/data4/lkz/mmdetection_stable_on_28_allattacks/work_dirs/ssd300_voc/epoch_24.pth --eval mAP --launcher pytorch
 
-/media/data4/lym/anaconda3/envs/lkz_mmdetection/bin/python3 robustdetector/tools/statisticalanalysation_epochwisecosine.py
+# /media/data4/lym/anaconda3/envs/lkz_mmdetection/bin/python3 robustdetector/tools/statisticalanalysation_epochwisecosine.py
 
 fdisk -l
 

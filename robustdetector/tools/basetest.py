@@ -12,7 +12,6 @@ from mmcv.cnn import fuse_conv_bn
 from mmcv.runner import (get_dist_info, init_dist, load_checkpoint,
                          wrap_fp16_model)
 
-from mmdet.apis import multi_gpu_test, single_gpu_test
 from mmdet.datasets import (build_dataloader, build_dataset,
                             replace_ImageToTensor)
 from mmdet.models import build_detector
@@ -118,8 +117,11 @@ def parse_args():
     return args
 
 
-def main():
+def main(single_gpu_test, multi_gpu_test = None, dir_name = None, epoch = None):
     args = parse_args()
+
+    if args.checkpoint.find('_epoch_') != -1:
+        args.checkpoint = args.checkpoint.replace('_epoch_', str(epoch))
 
     assert args.out or args.eval or args.format_only or args.show \
         or args.show_dir, \
@@ -189,14 +191,14 @@ def main():
 
     # in case the test dataset is concatenated
     if isinstance(cfg.data.test, dict):
-        cfg.data.test.test_mode = True
+        cfg.data.test.test_mode = False
         if cfg.data.test_dataloader.get('samples_per_gpu', 1) > 1:
             # Replace 'ImageToTensor' to 'DefaultFormatBundle'
             cfg.data.test.pipeline = replace_ImageToTensor(
                 cfg.data.test.pipeline)
     elif isinstance(cfg.data.test, list):
         for ds_cfg in cfg.data.test:
-            ds_cfg.test_mode = True
+            ds_cfg.test_mode = False
         if cfg.data.test_dataloader.get('samples_per_gpu', 1) > 1:
             for ds_cfg in cfg.data.test:
                 ds_cfg.pipeline = replace_ImageToTensor(ds_cfg.pipeline)
@@ -218,8 +220,13 @@ def main():
     data_loader = build_dataloader(dataset, **test_loader_cfg)
 
     # build the model and load checkpoint
-    cfg.model.train_cfg = None
-    model = build_detector(cfg.model, test_cfg=cfg.get('test_cfg'))
+
+    # cfg.model.train_cfg = None
+    # model = build_detector(cfg.model, test_cfg=cfg.get('test_cfg'))
+
+    model = build_detector(cfg.model, train_cfg=cfg.get('train_cfg'),test_cfg=cfg.get('test_cfg'))
+
+
     fp16_cfg = cfg.get('fp16', None)
     if fp16_cfg is not None:
         wrap_fp16_model(model)
@@ -236,7 +243,7 @@ def main():
     if not distributed:
         model = build_dp(model, cfg.device, device_ids=cfg.gpu_ids)
         outputs = single_gpu_test(model, data_loader, args.show, args.show_dir,
-                                  args.show_score_thr)
+                                  args.show_score_thr, dir_name=dir_name)
     else:
         model = build_ddp(
             model,
@@ -245,7 +252,7 @@ def main():
             broadcast_buffers=False)
         outputs = multi_gpu_test(
             model, data_loader, args.tmpdir, args.gpu_collect
-            or cfg.evaluation.get('gpu_collect', False))
+            or cfg.evaluation.get('gpu_collect', False), dir_name=dir_name)
 
     rank, _ = get_dist_info()
     if rank == 0:
@@ -269,7 +276,3 @@ def main():
             metric_dict = dict(config=args.config, metric=metric)
             if args.work_dir is not None and rank == 0:
                 mmcv.dump(metric_dict, json_file)
-
-
-if __name__ == '__main__':
-    main()
