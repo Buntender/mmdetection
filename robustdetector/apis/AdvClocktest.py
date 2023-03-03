@@ -1,4 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import functools
 import os.path as osp
 import pickle
 import shutil
@@ -12,10 +13,18 @@ from mmcv.image import tensor2imgs
 from mmcv.runner import get_dist_info
 
 from mmdet.core import encode_mask_results
-from robustdetector.apis.daedalus_loss import DaedalusLoss, outputdecode
 from robustdetector.apis.robustutils import perturbupdater
 
-def daedalus_single_gpu_test(model,
+from robustdetector.apis.patch import add_patch, load_patch
+from robustdetector.adv_clock.patch_gen import PatchApplier, PatchTransformer
+from mmdet.apis.test import collect_results_cpu, collect_results_gpu
+
+
+target_class = 14
+patch_applier = PatchApplier().cuda()
+patch_transformer = PatchTransformer().cuda()
+
+def AdcClock_single_gpu_test(model,
                     data_loader,
                     show=False,
                     out_dir=None,
@@ -26,24 +35,51 @@ def daedalus_single_gpu_test(model,
     dataset = data_loader.dataset
     PALETTE = getattr(dataset, 'PALETTE', None)
     prog_bar = mmcv.ProgressBar(len(dataset))
+    # patch = load_patch("work_dirs/ssd300_voc_AdvClock_0301_varlr_Patch/29.npy").cuda()
+    patch = load_patch("work_dirs/ssd300_voc_AdvClock_0301_clsloss_Patch/99.npy").cuda()
+
+    # plt.imshow(plt.imshow(patch.cpu().squeeze().numpy().transpose(1, 2, 0)))
+
     for i, data in enumerate(data_loader):
-        perturb = data['img'][0].data[0].new(data['img'][0].data[0].size()).uniform_(-2, 2).cuda() / data['img_metas'][0][0]['img_norm_cfg']['std'].cuda()
-        ori = data['img'][0].data[0].clone().detach().cuda()
 
-        for r in range(10):
-            data['img'][0].data[0] = (ori + perturb).cpu()
-            data['img'][0].data[0].detach_()
-            data['img'][0].data[0].requires_grad_()
+        bsz, _, height, width = data['img'][0].data[0].shape
+        lab_batch = []
+        for item in range(len(data['gt_labels'][0].data[0])):
+            bboxinimg = []
+            for obj in range(len(data['gt_labels'][0].data[0][item]) - 1, -1, -1):
+                if data['gt_labels'][0].data[0][item][obj] == target_class:
+                    bboxinimg.append(data['gt_bboxes'][0].data[0][item][obj].clone().detach())
 
-            datawrapper = lambda x: {'img': x, 'img_metas': data['img_metas'][0].data[0], 'return_raw': True}
-            pred = DaedalusLoss.forward(outputdecode(model, model(**datawrapper(data['img'][0].data[0]))[0]), None)
-            pred.backward()
+            if len(bboxinimg) != 0:
+                lab_batch.append(torch.stack(bboxinimg))
+            else:
+                lab_batch.append(torch.zeros([0, 4]))
 
-            perturb = perturbupdater(perturb, data['img'][0].data[0].grad.cuda(), ori, data['img_metas'][0].data[0][0]['img_norm_cfg'])
+        if torch.cat(lab_batch).size(0) != 0:
+
+            adv_batch = patch_transformer(
+                patch, torch.cat(lab_batch).cuda(), height, width,
+                rand_loc=True, scale_factor=0.22,
+                cls_label=int(target_class)).mul_(255)
+
+            bbox2img = [0] * torch.cat(lab_batch).size(0)
+            sum = 0
+            ptr = -1
+            for cur in range(len(bbox2img)):
+                while cur >= sum:
+                    ptr += 1
+                    sum += lab_batch[ptr].size(0)
+                bbox2img[cur] = ptr
+
+            img_std = torch.tensor(data['img_metas'][0].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).cuda()
+            img_mean = torch.tensor(data['img_metas'][0].data[0][0]['img_norm_cfg']['mean']).view(1, -1, 1, 1).cuda()
+
+            img = data['img'][0].data[0].cuda() * img_std + img_mean
+            data['img'][0].data[0] = patch_applier(img, adv_batch.cuda(), bbox2img)
+            data['img'][0].data[0] = ((data['img'][0].data[0] - img_mean) / img_std).cpu()
 
         with torch.no_grad():
-            data['img'][0].data[0].detach_()
-            datarefine = {'img': [data['img'][0].data[0]], 'img_metas': [data['img_metas'][0].data[0]]}
+            datarefine = {'img': data['img'][0].data, 'img_metas': [data['img_metas'][0].data[0]]}
             # result = model(return_loss=False, rescale=True, **datarefine)
             result = model(return_loss=False, rescale=True, **datarefine)
 

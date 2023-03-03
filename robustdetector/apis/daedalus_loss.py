@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 
+# TODO: Make it faster
 def outputdecode(model, res):
     bbox_pred_img_list = []
     cls_score_img_list = []
@@ -38,4 +39,4 @@ class DaedalusLoss():
             while sum(loss_c) > sum(loss_l):
                 loss_c /= 10
 
-        return -sum(loss_c + loss_l / 10)
+        return sum(loss_c + loss_l / 10)

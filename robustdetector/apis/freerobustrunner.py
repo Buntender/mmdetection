@@ -21,7 +21,7 @@ class FreeRobustRunner(EpochBasedRunner):
         for i, data_batch in enumerate(self.data_loader):
             self.data_batch = data_batch
             self._inner_iter = i
-            perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2)
+            perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2)  / self.data_batch['img_metas'][0][0]['img_norm_cfg']['std'].cuda()
             ori = self.data_batch['img'].data[0].clone().detach()
             # for i in range(10):
             for i in range(max(min(self.epoch - 5, 10), 1)):
@@ -57,7 +57,7 @@ class FreeRobustRunner(EpochBasedRunner):
             self._inner_iter = i
             self.call_hook('before_val_iter')
 
-            perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2)
+            perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2)  / self.data_batch['img_metas'][0][0]['img_norm_cfg']['std'].cuda()
             ori = self.data_batch['img'].data[0].clone().detach()
             for i in range(10):
                 self.data_batch['img'].data[0] = ori + perturb

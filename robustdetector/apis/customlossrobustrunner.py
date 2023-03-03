@@ -31,7 +31,7 @@ class CustomLossRobustRunner(EpochBasedRunner):
         for i, data_batch in enumerate(self.data_loader):
             self.data_batch = data_batch
             self._inner_iter = i
-            perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-1, 1)
+            perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2) / self.data_batch['img_metas'][0][0]['img_norm_cfg']['std'].cuda()
             ori = self.data_batch['img'].data[0].clone().detach()
             self.data_batch['img'].data[0] += perturb
             # for i in range(10):
