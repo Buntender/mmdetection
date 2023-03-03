@@ -1,0 +1,7 @@
+#sh /media/data4/lkz/mmdetection_stable_on_28_1124/robustdetector/tools/getfeaturebimodel
+cd /media/data4/lkz/mmdetection_stable_on_28_1124/
+export PYTHONPATH=/media/data4/lkz/mmdetection_stable_on_28_1124/
+export CUDA_VISIBLE_DEVICES=4
+
+#/media/data4/lym/anaconda3/envs/lkz_mmdetection/bin/python3 /media/data4/lkz/mmdetection_stable_on_28_1124/robustdetector/tools/getfeatures_bimodel.py /media/data4/lkz/mmdetection_stable_on_28_1124/robustdetector/configs/ssd300_voc_FreeRobust.py /media/data4/lkz/mmdetection_stable_on_28_1124/work_dirs/ssd300_voc/epoch__epoch_.pth --eval mAP
+/media/data4/lym/anaconda3/envs/lkz_mmdetection/bin/python3 /media/data4/lkz/mmdetection_stable_on_28_1124/robustdetector/tools/statisticalanalysation_epochwisecosine.py

@@ -1,0 +1,297 @@
+# Copyright (c) OpenMMLab. All rights reserved.
+import functools
+import os.path as osp
+import pickle
+import shutil
+import tempfile
+import time
+
+import mmcv
+import torch
+import torch.distributed as dist
+from mmcv.image import tensor2imgs
+from mmcv.runner import get_dist_info
+
+from mmdet.core import encode_mask_results
+from robustdetector.apis.robustutils import perturbupdater
+
+from robustdetector.apis.patch import add_patch, load_patch
+from robustdetector.adv_clock.patch_gen import PatchApplier, PatchTransformer
+
+target_class = 14
+patch_applier = PatchApplier().cuda()
+patch_transformer = PatchTransformer().cuda()
+
+def AdcClock_single_gpu_test(model,
+                    data_loader,
+                    show=False,
+                    out_dir=None,
+                    show_score_thr=0.3,
+                    **kwargs):
+    model.eval()
+    results = []
+    dataset = data_loader.dataset
+    PALETTE = getattr(dataset, 'PALETTE', None)
+    prog_bar = mmcv.ProgressBar(len(dataset))
+    # patch = load_patch("work_dirs/ssd300_voc_AdvClock_0301_varlr_Patch/29.npy").cuda()
+    patch = load_patch("work_dirs/ssd300_voc_AdvClock_0301_clsloss_Patch/99.npy").cuda()
+
+    # plt.imshow(plt.imshow(patch.cpu().squeeze().numpy().transpose(1, 2, 0)))
+
+    for i, data in enumerate(data_loader):
+
+        bsz, _, height, width = data['img'][0].data[0].shape
+        lab_batch = []
+        for item in range(len(data['gt_labels'][0].data[0])):
+            bboxinimg = []
+            for obj in range(len(data['gt_labels'][0].data[0][item]) - 1, -1, -1):
+                if data['gt_labels'][0].data[0][item][obj] == target_class:
+                    bboxinimg.append(data['gt_bboxes'][0].data[0][item][obj].clone().detach())
+
+                    # data['gt_labels'].data[0][item] = torch.cat([data['gt_labels'].data[0][item][:obj],
+                    #                                                    data['gt_labels'].data[0][item][
+                    #                                                    obj + 1:]]).detach()
+                    # data['gt_bboxes'].data[0][item] = torch.cat(
+                    #     [data['gt_bboxes'].data[0][item][:obj],
+                    #      data['gt_bboxes'].data[0][item][obj + 1:]]).detach()
+
+            if len(bboxinimg) != 0:
+                lab_batch.append(torch.stack(bboxinimg))
+            else:
+                lab_batch.append(torch.zeros([0, 4]))
+
+        if torch.cat(lab_batch).size(0) != 0:
+
+            adv_batch = patch_transformer(
+                patch, torch.cat(lab_batch).cuda(), height, width,
+                rand_loc=True, scale_factor=0.22,
+                cls_label=int(target_class)).mul_(255)
+
+            bbox2img = [0] * torch.cat(lab_batch).size(0)
+            sum = 0
+            ptr = -1
+            for cur in range(len(bbox2img)):
+                while cur >= sum:
+                    ptr += 1
+                    sum += lab_batch[ptr].size(0)
+                bbox2img[cur] = ptr
+
+            img_std = torch.tensor(data['img_metas'][0].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).cuda()
+            img_mean = torch.tensor(data['img_metas'][0].data[0][0]['img_norm_cfg']['mean']).view(1, -1, 1, 1).cuda()
+
+            img = data['img'][0].data[0].cuda() * img_std + img_mean
+            data['img'][0].data[0] = patch_applier(img, adv_batch.cuda(), bbox2img)
+            data['img'][0].data[0] = ((data['img'][0].data[0] - img_mean) / img_std).cpu()
+
+
+
+        with torch.no_grad():
+            datarefine = {'img': data['img'][0].data, 'img_metas': [data['img_metas'][0].data[0]]}
+            # result = model(return_loss=False, rescale=True, **datarefine)
+            result = model(return_loss=False, rescale=True, **datarefine)
+
+        batch_size = len(result)
+        if show or out_dir:
+            if batch_size == 1 and isinstance(data['img'][0], torch.Tensor):
+                img_tensor = data['img'][0]
+            else:
+                img_tensor = data['img'][0].data[0]
+            img_metas = data['img_metas'][0].data[0]
+            imgs = tensor2imgs(img_tensor, **img_metas[0]['img_norm_cfg'])
+            assert len(imgs) == len(img_metas)
+
+            for i, (img, img_meta) in enumerate(zip(imgs, img_metas)):
+                h, w, _ = img_meta['img_shape']
+                img_show = img[:h, :w, :]
+
+                ori_h, ori_w = img_meta['ori_shape'][:-1]
+                img_show = mmcv.imresize(img_show, (ori_w, ori_h))
+
+                if out_dir:
+                    out_file = osp.join(out_dir, img_meta['ori_filename'])
+                else:
+                    out_file = None
+
+                model.module.show_result(
+                    img_show,
+                    result[i],
+                    bbox_color=PALETTE,
+                    text_color=PALETTE,
+                    mask_color=PALETTE,
+                    show=show,
+                    out_file=out_file,
+                    score_thr=show_score_thr)
+
+        # encode mask results
+        if isinstance(result[0], tuple):
+            result = [(bbox_results, encode_mask_results(mask_results))
+                      for bbox_results, mask_results in result]
+        # This logic is only used in panoptic segmentation test.
+        elif isinstance(result[0], dict) and 'ins_results' in result[0]:
+            for j in range(len(result)):
+                bbox_results, mask_results = result[j]['ins_results']
+                result[j]['ins_results'] = (bbox_results,
+                                            encode_mask_results(mask_results))
+
+        results.extend(result)
+
+        for _ in range(batch_size):
+            prog_bar.update()
+    return results
+
+
+# def _robust_multi_gpu_test(model, data_loader, tmpdir=None, gpu_collect=False,
+#                     backpropfunc = None, **kwargs):
+#     """Test model with multiple gpus.
+#
+#     This method tests model with multiple gpus and collects the results
+#     under two different modes: gpu and cpu modes. By setting 'gpu_collect=True'
+#     it encodes results to gpu tensors and use gpu communication for results
+#     collection. On cpu mode it saves the results on different gpus to 'tmpdir'
+#     and collects them by the rank 0 worker.
+#
+#     Args:
+#         model (nn.Module): Model to be tested.
+#         data_loader (nn.Dataloader): Pytorch data loader.
+#         tmpdir (str): Path of directory to save the temporary results from
+#             different gpus under cpu mode.
+#         gpu_collect (bool): Option to use either gpu or cpu to collect results.
+#
+#     Returns:
+#         list: The prediction results.
+#     """
+#     model.eval()
+#     results = []
+#     dataset = data_loader.dataset
+#     rank, world_size = get_dist_info()
+#     if rank == 0:
+#         prog_bar = mmcv.ProgressBar(len(dataset))
+#     time.sleep(2)  # This line can prevent deadlock problem in some cases.
+#     for i, data in enumerate(data_loader):
+#         data = model.scatter(data, None, model.device_ids)[0][0]
+#         perturb = data['img'][0].new(data['img'][0].size()).uniform_(-2, 2)
+#         ori = data['img'][0].clone().detach()
+#
+#         for r in range(10):
+#             data['img'][0] = (ori + perturb).cpu()
+#             data['img'][0] = data['img'][0].detach()
+#             data['img'][0].requires_grad_()
+#
+#             loss = model(img=data['img'][0], img_metas=data['img_metas'][0], gt_bboxes=data['gt_bboxes'][0], gt_labels=data['gt_labels'][0])
+#             # loss = model(**data)
+#             backpropfunc(loss, model)
+#             perturb = perturbupdater(perturb, data['img'][0].grad.to(perturb.device), ori, data['img_metas'][0][0]['img_norm_cfg'])
+#
+#         with torch.no_grad():
+#             datarefine = {'img': [data['img'][0]], 'img_metas': [data['img_metas'][0]]}
+#             result = model(return_loss=False, rescale=True, **datarefine)
+#             # encode mask results
+#             if isinstance(result[0], tuple):
+#                 result = [(bbox_results, encode_mask_results(mask_results))
+#                           for bbox_results, mask_results in result]
+#             # This logic is only used in panoptic segmentation test.
+#             elif isinstance(result[0], dict) and 'ins_results' in result[0]:
+#                 for j in range(len(result)):
+#                     bbox_results, mask_results = result[j]['ins_results']
+#                     result[j]['ins_results'] = (
+#                         bbox_results, encode_mask_results(mask_results))
+#
+#         results.extend(result)
+#
+#         if rank == 0:
+#             batch_size = len(result)
+#             for _ in range(batch_size * world_size):
+#                 prog_bar.update()
+#
+#     # collect results from all ranks
+#     if gpu_collect:
+#         results = collect_results_gpu(results, len(dataset))
+#     else:
+#         results = collect_results_cpu(results, len(dataset), tmpdir)
+#     return results
+
+def collect_results_cpu(result_part, size, tmpdir=None):
+    rank, world_size = get_dist_info()
+    # create a tmp dir if it is not specified
+    if tmpdir is None:
+        MAX_LEN = 512
+        # 32 is whitespace
+        dir_tensor = torch.full((MAX_LEN, ),
+                                32,
+                                dtype=torch.uint8,
+                                device='cuda')
+        if rank == 0:
+            mmcv.mkdir_or_exist('.dist_test')
+            tmpdir = tempfile.mkdtemp(dir='.dist_test')
+            tmpdir = torch.tensor(
+                bytearray(tmpdir.encode()), dtype=torch.uint8, device='cuda')
+            dir_tensor[:len(tmpdir)] = tmpdir
+        dist.broadcast(dir_tensor, 0)
+        tmpdir = dir_tensor.cpu().numpy().tobytes().decode().rstrip()
+    else:
+        mmcv.mkdir_or_exist(tmpdir)
+    # dump the part result to the dir
+    mmcv.dump(result_part, osp.join(tmpdir, f'part_{rank}.pkl'))
+    dist.barrier()
+    # collect all parts
+    if rank != 0:
+        return None
+    else:
+        # load results of all parts from tmp dir
+        part_list = []
+        for i in range(world_size):
+            part_file = osp.join(tmpdir, f'part_{i}.pkl')
+            part_list.append(mmcv.load(part_file))
+        # sort the results
+        ordered_results = []
+        for res in zip(*part_list):
+            ordered_results.extend(list(res))
+        # the dataloader may pad some samples
+        ordered_results = ordered_results[:size]
+        # remove tmp dir
+        shutil.rmtree(tmpdir)
+        return ordered_results
+
+
+def collect_results_gpu(result_part, size):
+    rank, world_size = get_dist_info()
+    # dump result part to tensor with pickle
+    part_tensor = torch.tensor(
+        bytearray(pickle.dumps(result_part)), dtype=torch.uint8, device='cuda')
+    # gather all result part tensor shape
+    shape_tensor = torch.tensor(part_tensor.shape, device='cuda')
+    shape_list = [shape_tensor.clone() for _ in range(world_size)]
+    dist.all_gather(shape_list, shape_tensor)
+    # padding result part tensor to max length
+    shape_max = torch.tensor(shape_list).max()
+    part_send = torch.zeros(shape_max, dtype=torch.uint8, device='cuda')
+    part_send[:shape_tensor[0]] = part_tensor
+    part_recv_list = [
+        part_tensor.new_zeros(shape_max) for _ in range(world_size)
+    ]
+    # gather all result part
+    dist.all_gather(part_recv_list, part_send)
+
+    if rank == 0:
+        part_list = []
+        for recv, shape in zip(part_recv_list, shape_list):
+            part_list.append(
+                pickle.loads(recv[:shape[0]].cpu().numpy().tobytes()))
+        # sort the results
+        ordered_results = []
+        for res in zip(*part_list):
+            ordered_results.extend(list(res))
+        # the dataloader may pad some samples
+        ordered_results = ordered_results[:size]
+        return ordered_results
+
+
+
+def bboxresize(data, gts):
+    size = data['img_metas'][0].data[0][0]['ori_shape']
+    for i in range(len(gts['bboxes'])):
+        gts['bboxes'][i][0] = gts['bboxes'][i][0] * 300 / size[1]
+        gts['bboxes'][i][1] = gts['bboxes'][i][1] * 300 / size[0]
+        gts['bboxes'][i][2] = gts['bboxes'][i][2] * 300 / size[1]
+        gts['bboxes'][i][3] = gts['bboxes'][i][3] * 300 / size[0]
+    return gts

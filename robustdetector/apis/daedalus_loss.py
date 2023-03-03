@@ -38,4 +38,4 @@ class DaedalusLoss():
             while sum(loss_c) > sum(loss_l):
                 loss_c /= 10
 
-        return -sum(loss_c + loss_l / 10)
+        return sum(loss_c + loss_l / 10)

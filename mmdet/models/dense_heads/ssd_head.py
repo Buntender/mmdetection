@@ -253,7 +253,17 @@ class SSDHead(AnchorHead):
             as_tuple=False).view(-1)
 
         num_pos_samples = pos_inds.size(0)
-        num_neg_samples = self.train_cfg.neg_pos_ratio * num_pos_samples
+
+
+
+        #flag for my changes
+        # num_neg_samples = self.train_cfg.neg_pos_ratio * num_pos_samples
+        num_neg_samples = self.train_cfg.neg_pos_ratio * (num_pos_samples if num_pos_samples > 0 else 1)
+        # num_neg_samples = 0
+
+
+
+
         if num_neg_samples > neg_inds.size(0):
             num_neg_samples = neg_inds.size(0)
         topk_loss_cls_neg, _ = loss_cls_all[neg_inds].topk(num_neg_samples)
@@ -273,6 +283,11 @@ class SSDHead(AnchorHead):
             bbox_weights,
             beta=self.train_cfg.smoothl1_beta,
             avg_factor=num_total_samples)
+
+
+
+        # flag for my changes
+        # return loss_cls[None], loss_bbox * 0
         return loss_cls[None], loss_bbox
 
     @force_fp32(apply_to=('cls_scores', 'bbox_preds'))

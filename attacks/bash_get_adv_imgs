@@ -1,0 +1,7 @@
+#sh /media/data4/lkz/mmdetection_stable_on_28_allattacks/attacks/bash_get_adv_imgs
+
+cd /media/data4/lkz/mmdetection_stable_on_28_allattacks/
+export PYTHONPATH=/media/data4/lkz/mmdetection_stable_on_28_allattacks/
+export CUDA_VISIBLE_DEVICES=0
+
+/media/data4/lym/anaconda3/envs/lkz_mmdetection/bin/python3 attacks/run_sequential_attack.py --gpu 0

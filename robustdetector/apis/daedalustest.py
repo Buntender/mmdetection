@@ -13,39 +13,38 @@ from mmcv.runner import get_dist_info
 
 from mmdet.core import encode_mask_results
 from robustdetector.apis.daedalus_loss import DaedalusLoss, outputdecode
+from robustdetector.apis.robustutils import perturbupdater
 
 def daedalus_single_gpu_test(model,
                     data_loader,
                     show=False,
                     out_dir=None,
-                    show_score_thr=0.3):
+                    show_score_thr=0.3, **kwargs):
     model.eval()
     results = []
     dataset = data_loader.dataset
     PALETTE = getattr(dataset, 'PALETTE', None)
     prog_bar = mmcv.ProgressBar(len(dataset))
     for i, data in enumerate(data_loader):
-        gts = data_loader.dataset.get_ann_info(i)
-        perturb = data['img'][0].new(data['img'][0].size()).uniform_(-2, 2)
-        ori = data['img'][0].clone().detach()
-        for r in range(10):
-            data['img'][0] = ori + perturb
-            data['img'][0].detach_()
-            data['img'][0].requires_grad_()
+        perturb = data['img'][0].data[0].new(data['img'][0].data[0].size()).uniform_(-2, 2).cuda()
+        ori = data['img'][0].data[0].clone().detach().cuda()
 
-            datawrapper = lambda x: {'img': x, 'img_metas': data['img_metas'][0], 'return_raw': True}
-            pred = DaedalusLoss.forward(outputdecode(model, model(**datawrapper(data['img'][0]))), None)
+        for r in range(10):
+            data['img'][0].data[0] = (ori + perturb).cpu()
+            data['img'][0].data[0] = data['img'][0].data[0].detach()
+            data['img'][0].data[0].requires_grad_()
+
+            datawrapper = lambda x: {'img': x, 'img_metas': data['img_metas'][0].data[0], 'return_raw': True}
+            pred = DaedalusLoss.forward(outputdecode(model, model(**datawrapper(data['img'][0].data[0]))[0]), None)
             pred.backward()
 
-            grad = data['img'][0].grad.clone()
-            perturb += 2 * grad.sign()
-            perturb = perturb.clamp(-8, 8)
-            perturb.detach_()
+            perturb = perturbupdater(perturb, data['img'][0].data[0].grad.cuda(), ori, data['img_metas'][0].data[0][0]['img_norm_cfg'])
 
         with torch.no_grad():
-            # datarefine = {'img': [data['img'].data[0]], 'img_metas': [data['img_metas'].data[0]]}
+            data['img'][0].data[0].detach_()
+            datarefine = {'img': [data['img'][0].data[0]], 'img_metas': [data['img_metas'][0].data[0]]}
             # result = model(return_loss=False, rescale=True, **datarefine)
-            result = model(return_loss=False, rescale=True, **data)
+            result = model(return_loss=False, rescale=True, **datarefine)
 
         batch_size = len(result)
         if show or out_dir:
@@ -77,6 +76,7 @@ def daedalus_single_gpu_test(model,
                     mask_color=PALETTE,
                     show=show,
                     out_file=out_file,
+
                     score_thr=show_score_thr)
 
         # encode mask results

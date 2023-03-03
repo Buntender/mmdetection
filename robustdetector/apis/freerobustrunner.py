@@ -8,6 +8,7 @@ import logging
 from typing import (Any, Callable, Dict, List, Optional, Tuple, Union,
                     no_type_check)
 import mmcv
+from robustdetector.apis.robustutils import perturbupdater
 
 @RUNNERS.register_module()
 class FreeRobustRunner(EpochBasedRunner):
@@ -21,23 +22,25 @@ class FreeRobustRunner(EpochBasedRunner):
         for i, data_batch in enumerate(self.data_loader):
             self.data_batch = data_batch
             self._inner_iter = i
-            perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2)
-            ori = self.data_batch['img'].data[0].clone().detach()
+
+            perturb = (self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2).to(self.model.device) / torch.tensor(self.data_batch['img_metas'].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).to(self.model.device))
+            ori = self.data_batch['img'].data[0].clone().detach().to(self.model.device)
+            # perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2).to(self.model.src_device_obj)
+            # ori = self.data_batch['img'].data[0].clone().detach().to(self.model.src_device_obj)
+
             # for i in range(10):
-            for i in range(max(min(self.epoch - 5, 10), 1)):
+            for i in range(max(min((self.epoch - 10), 10), 1)):
                 self.call_hook('before_train_iter')
-                self.data_batch['img'].data[0] = ori + perturb
-                self.data_batch['img'].data[0].detach_()
+                self.data_batch['img'].data[0] = (ori + perturb).cpu()
+                self.data_batch['img'].data[0] = self.data_batch['img'].data[0].detach()
                 self.data_batch['img'].data[0].requires_grad_()
                 self.run_iter(data_batch, train_mode=True, **kwargs)
                 self.optimizer.zero_grad()
                 # self.outputs['loss'].backward(retain_graph=True)
                 self.outputs['loss'].backward()
 
-                grad = self.data_batch['img'].data[0].grad.clone()
-                perturb += 2 * grad.sign()
-                perturb = perturb.clamp(-8, 8)
-                perturb.detach_()
+                perturb = perturbupdater(perturb, self.data_batch['img'].data[0].grad.to(self.model.device), ori, self.data_batch['img_metas'].data[0][0]['img_norm_cfg'])
+                # perturb = perturbupdater(perturb, self.data_batch['img'].data[0].grad.to(self.model.src_device_obj), ori, self.data_batch['img_metas'].data[0][0]['img_norm_cfg'])
 
                 self.call_hook('after_train_iter')
             del self.data_batch
@@ -57,10 +60,11 @@ class FreeRobustRunner(EpochBasedRunner):
             self._inner_iter = i
             self.call_hook('before_val_iter')
 
-            perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2)
-            ori = self.data_batch['img'].data[0].clone().detach()
+            perturb = (self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2).to(self.model.device) / torch.tensor(self.data_batch['img_metas'].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).to(self.model.device))
+            ori = self.data_batch['img'].data[0].clone().cuda().to(self.model.device)
+
             for i in range(10):
-                self.data_batch['img'].data[0] = ori + perturb
+                self.data_batch['img'].data[0] = (ori + perturb).cpu()
                 self.data_batch['img'].data[0].detach_()
                 self.data_batch['img'].data[0].requires_grad_()
                 self.run_iter(data_batch, train_mode=True, **kwargs)
@@ -68,10 +72,7 @@ class FreeRobustRunner(EpochBasedRunner):
                 # self.outputs['loss'].backward(retain_graph=True)
                 self.outputs['loss'].backward()
 
-                grad = self.data_batch['img'].data[0].grad.clone()
-                perturb += 2 * grad.sign()
-                perturb = perturb.clamp(-8, 8)
-                perturb.detach_()
+                perturb = perturbupdater(perturb, self.data_batch['img'].data[0].grad.to(self.model.device), ori, self.data_batch['img_metas'][0].data[0][0]['img_norm_cfg'])
 
             with torch.no_grad():
                 self.run_iter(data_batch, train_mode=False)

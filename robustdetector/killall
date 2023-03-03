@@ -1,0 +1,2 @@
+result = fuser -v /dev/nvidia*
+echo $result

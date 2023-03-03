@@ -7,6 +7,10 @@ NODE_RANK=${NODE_RANK:-0}
 PORT=${PORT:-29500}
 MASTER_ADDR=${MASTER_ADDR:-"127.0.0.1"}
 
+source /media/data4/lym/anaconda3/bin/activate lkz_mmdetection
+export PYTHONPATH=/media/data4/lkz/mmdetection_stable_on_28_1124/
+export CUDA_VISIBLE_DEVICES=4,5,6,7
+
 PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
 python -m torch.distributed.launch \
     --nnodes=$NNODES \

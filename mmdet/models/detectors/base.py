@@ -169,6 +169,7 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
             return self.onnx_export(img[0], img_metas[0])
 
         if kwargs.get('return_raw'):
+
             return self.forward_dummy(img)
         if return_loss:
             return self.forward_train(img, img_metas, **kwargs)

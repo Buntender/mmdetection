@@ -52,7 +52,7 @@ class SingleStageDetector(BaseDetector):
         """
         x = self.extract_feat(img)
         outs = self.bbox_head(x)
-        return outs
+        return outs, x
 
     def forward_train(self,
                       img,
@@ -84,7 +84,7 @@ class SingleStageDetector(BaseDetector):
                                               gt_labels, gt_bboxes_ignore)
         return losses
 
-    def simple_test(self, img, img_metas, rescale=False):
+    def simple_test(self, img, img_metas, rescale=False, attack_mode=None):
         """Test function without test-time augmentation.
 
         Args:
@@ -101,6 +101,11 @@ class SingleStageDetector(BaseDetector):
         feat = self.extract_feat(img)
         results_list = self.bbox_head.simple_test(
             feat, img_metas, rescale=rescale)
+
+        if attack_mode is not None and attack_mode:
+            for det_bboxes, det_labels in results_list:
+                return det_bboxes.unsqueeze(0), det_labels.unsqueeze(0)
+
         bbox_results = [
             bbox2result(det_bboxes, det_labels, self.bbox_head.num_classes)
             for det_bboxes, det_labels in results_list
