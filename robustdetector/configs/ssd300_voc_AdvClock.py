@@ -99,15 +99,15 @@ data = dict(
             # ],
 
             ann_file=[
-                "robustdetector/utils/person_only_anno_2007.txt",
-                "robustdetector/utils/person_only_anno_2012.txt"
+                "robustdetector/utils/person_only_anno_2007_trainval.txt",
+                "robustdetector/utils/person_only_anno_2012_trainval.txt"
             ],
 
             img_prefix=[data_root + 'VOC2007/', data_root + 'VOC2012/'],
             pipeline=train_pipeline)),
     val=dict(
         type=dataset_type,
-        ann_file= "robustdetector/utils/person_only_anno_2007.txt",
+        ann_file= "robustdetector/utils/person_only_anno_2007_trainval.txt",
         img_prefix=data_root + 'VOC2007/',
         pipeline=test_pipeline),
     test=dict(
@@ -131,8 +131,8 @@ data = dict(
 #             # ],
 #
 #             ann_file=[
-#                 "robustdetector/utils/person_only_anno_2007.txt",
-#                 "robustdetector/utils/person_only_anno_2012.txt"
+#                 "robustdetector/utils/person_only_anno_2007_trainval.txt",
+#                 "robustdetector/utils/person_only_anno_2012_trainval.txt"
 #             ],
 #
 #             img_prefix=[data_root + 'VOC2007/', data_root + 'VOC2012/'],

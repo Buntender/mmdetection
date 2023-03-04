@@ -18,8 +18,9 @@ from robustdetector.adv_clock.patch_gen import PatchApplier, PatchTransformer, S
 import torch.nn.functional as F
 
 from itertools import chain
+import os
 
-lr = 1e-2
+lr = 5e-2
 momentum = 0.9
 target_class = 14
 img_w = 72
@@ -46,6 +47,10 @@ class AdvClockRunner(EpochBasedRunner):
         self.TVLoss = SmoothTV()
         self.loss = AdvClockLoss()
 
+        self.dir = '/'.join(kwargs['meta']['config'].split('resume_from')[1].split('\n')[0].split('\'')[1].split('/')[:-1])
+        if not os.path.isdir(self.dir):
+            os.makedirs(self.dir)
+
     def train(self, data_loader, **kwargs):
         self.model.train()
         self.mode = 'train'
@@ -68,10 +73,6 @@ class AdvClockRunner(EpochBasedRunner):
                 for obj in range(len(data_batch['gt_labels'].data[0][item])-1, -1, -1):
                     if data_batch['gt_labels'].data[0][item][obj] == target_class:
                         bboxinimg.append(data_batch['gt_bboxes'].data[0][item][obj])
-
-                        data_batch['gt_labels'].data[0][item] = torch.cat([data_batch['gt_labels'].data[0][item][:obj], data_batch['gt_labels'].data[0][item][obj+1:]]).detach()
-                        data_batch['gt_bboxes'].data[0][item] = torch.cat(
-                            [data_batch['gt_bboxes'].data[0][item][:obj], data_batch['gt_bboxes'].data[0][item][obj + 1:]]).detach()
                 if len(bboxinimg) != 0:
                     lab_batch.append(torch.stack(bboxinimg))
                 else:
@@ -168,7 +169,7 @@ class AdvClockRunner(EpochBasedRunner):
             self._iter += 1
 
         self.call_hook('after_train_epoch')
-        save_patch(self.patch, self.epoch)
+        save_patch(self.patch, self.dir, self.epoch)
         self.patchscheduler.step()
         self._epoch += 1
 
@@ -207,16 +208,15 @@ class AdvClockRunner(EpochBasedRunner):
         self.data_batch['img'].data[0].requires_grad_()
         datawrapper = lambda x: {'img': x, 'img_metas': self.data_batch['img_metas'].data[0], 'return_raw': True}
 
-        res = self.model(**datawrapper(self.data_batch['img'].data[0]))[0]
+        pred = self.model(**datawrapper(self.data_batch['img'].data[0]))
+        loss = self.loss.forward(outputdecode(self.model, pred), None)
 
-        res = outputdecode(self.model, res)
-
-        loss = self.loss.forward(res, None)
+        dummy = sum([torch.sum(layer) for layer in pred[1]]) * 0
 
         tvloss = self.TVLoss(self.patch)
 
         # self.outputs['loss'] = loss + tvloss
-        self.outputs['loss'] = loss + tvloss * max(self.epoch - 40, 0) * 0.01
+        self.outputs['loss'] = loss + dummy + tvloss * 0.1
         self.outputs['log_vars']['adv loss'] = float(loss)
         self.outputs['log_vars']['tv loss'] = float(tvloss)
 
@@ -260,8 +260,5 @@ class AdvClockLoss():
         return torch.sum(lossperbox * self.weights)
 
 def outputdecode(model, res):
-    cls_score_img_list = [layer.permute(0, 2, 3, 1).reshape(res[0][0].size(0), -1, 21) for layer in res[0]]
-    dummy = [torch.sum(layer) * 0 for layer in res[1]]
-    for layer in range(len(cls_score_img_list)):
-        cls_score_img_list[layer][0, 0, 0] = cls_score_img_list[layer][0,0,0] + dummy[layer]
+    cls_score_img_list = [layer.permute(0, 2, 3, 1).reshape(layer.size(0), -1, model.module.bbox_head.cls_out_channels) for layer in res[0]]
     return torch.cat(cls_score_img_list, dim=1)

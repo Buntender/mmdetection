@@ -1,6 +1,6 @@
-# with open("/media/data4/lkz/mmdetection_stable_on_28_allattacks/data/VOCdevkit/VOC2007/ImageSets/Main/person_trainval.txt") as rawfile:
-with open("/media/data4/lkz/mmdetection_stable_on_28_allattacks/data/VOCdevkit/VOC2007/ImageSets/Main/person_test.txt") as rawfile:
-    with open("person_only_anno_2007_test.txt", "w")as resfile:
+with open("data/VOCdevkit/VOC2012/ImageSets/Main/person_trainval.txt") as rawfile:
+# with open("data/VOCdevkit/VOC2007/ImageSets/Main/person_test.txt") as rawfile:
+    with open("robustdetector/utils/person_only_anno_2012_trainval.txt", "w")as resfile:
         line = rawfile.readline()
         while line:
             line = line.split(" ")

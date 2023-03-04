@@ -1,11 +1,11 @@
-ln -s /media/data1/lkz/data/coco2017 /media/data4/lkz/mmdetection_stable_on_28_allattacks/data/coco
-ln -s /media/data1/lkz/data/VOCdevkit/ /media/data4/lkz/mmdetection_stable_on_28_allattacks/data/VOCdevkit
+ln -s /media/data0/lkz/data/coco /media/data4/lkz/mmdetection_adv/data/coco
+ln -s /media/data0/lkz/data/VOC/VOCdevkit /media/data4/lkz/mmdetection_adv/data/VOCdevkit
 
-source /home/liukezhao/miniconda3/bin/activate lkz_mmdetection
+source /media/data4/lym/miniconda3/bin/activate lkz_mmdetection
 fuser -k -v /dev/nvidia7
 
-cd /media/data4/lkz/mmdetection_stable_on_28_allattacks/
-export PYTHONPATH=/media/data4/lkz/mmdetection_stable_on_28_allattacks/
+cd /media/data4/lkz/mmdetection_adv
+export PYTHONPATH=/media/data4/lkz/mmdetection_adv
 export CUDA_VISIBLE_DEVICES=1
 
 #train
@@ -21,7 +21,7 @@ export CUDA_VISIBLE_DEVICES=1
 /media/data4/lym/anaconda3/envs/lkz_mmdetection/bin/python3 /media/data4/lym/anaconda3/envs/lkz_mmdetection/lib/python3.7/site-packages/torch/distributed/launch.py --nproc_per_node=4 /media/data4/lkz/mmdetection_stable_on_28_allattacks/tools/train.py robustdetector/configs/ssd300_voc_daedalus.py --launcher pytorch
 /media/data4/lym/anaconda3/envs/lkz_mmdetection/bin/python3 /media/data4/lym/anaconda3/envs/lkz_mmdetection/lib/python3.7/site-packages/torch/distributed/launch.py --nproc_per_node=4 /media/data4/lkz/mmdetection_stable_on_28_allattacks/tools/train.py robustdetector/configs/yolov3_d53_mstrain-416_273e_voc.py --launcher pytorch
 /media/data4/lym/anaconda3/envs/lkz_mmdetection/bin/python3 /media/data4/lym/anaconda3/envs/lkz_mmdetection/lib/python3.7/site-packages/torch/distributed/launch.py --nproc_per_node=4 /media/data4/lkz/mmdetection_stable_on_28_allattacks/tools/train.py /media/data4/lkz/mmdetection_stable_on_28_allattacks/robustdetector/configs/faster_rcnn_r50_fpn_1x_voc.py --launcher pytorch
-/media/data4/lym/anaconda3/envs/lkz_mmdetection/bin/python3 /media/data4/lym/anaconda3/envs/lkz_mmdetection/lib/python3.7/site-packages/torch/distributed/launch.py --nproc_per_node=4 tools/train.py robustdetector/configs/ssd300_voc_AdvClock.py --resume-from work_dirs/ssd300_voc_DPatch/latest.pth --launcher pytorch
+/media/data4/lym/anaconda3/envs/lkz_mmdetection/bin/python3 /media/data4/lym/anaconda3/envs/lkz_mmdetection/lib/python3.7/site-packages/torch/distributed/launch.py --nproc_per_node=4 tools/train.py robustdetector/configs/ssd300_voc_AdvClock.py --resume-from work_dirs/ssd300_voc_AdvClock/latest.pth --launcher pytorch
 
 #test
 /media/data4/lym/anaconda3/envs/lkz_mmdetection/bin/python3 robustdetector/tools/stdtest.py robustdetector/configs/ssd300_voc.py work_dirs/ssd300_voc/epoch_24.pth --eval mAP

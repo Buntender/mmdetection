@@ -38,7 +38,7 @@ def AdcClock_single_gpu_test(model,
     prog_bar = mmcv.ProgressBar(len(dataset))
     # patch = load_patch("work_dirs/ssd300_voc_AdvClock_0301_varlr_Patch/29.npy").cuda()
     # patch = load_patch("work_dirs/ssd300_voc_AdvClock_0301_clsloss_Patch/99.npy").cuda()
-    patch = load_patch("work_dirs/ssd300_voc_AdvClock_0303_clsloss_Patch/99.npy").cuda()
+    patch = load_patch("work_dirs/ssd300_voc_AdvClock_0304_Patch/26.npy").cuda()
 
 
     # import matplotlib.pyplot as plt
