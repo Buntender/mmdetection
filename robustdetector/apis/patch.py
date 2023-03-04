@@ -5,7 +5,7 @@ import os
 from PIL import Image
 
 #TODO move to utils
-save_patch_path = "work_dirs/ssd300_voc_AdvClock_0303_clsloss_Patch"
+save_patch_path = "work_dirs/ssd300_voc_AdvClock_0304_Robust_Patch"
 if not os.path.isdir(save_patch_path):
     os.makedirs(save_patch_path)
 
