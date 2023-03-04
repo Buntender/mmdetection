@@ -1,25 +1,14 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-import functools
 import os.path as osp
-import pickle
-import shutil
-import tempfile
-import time
 
 import mmcv
 import torch
-import torch.distributed as dist
 from mmcv.image import tensor2imgs
-from mmcv.runner import get_dist_info
 
 from mmdet.core import encode_mask_results
-from robustdetector.apis.robustutils import perturbupdater
 
-from robustdetector.apis.patch import load_patch
-from robustdetector.adv_clock.patch_gen import PatchApplier, PatchTransformer
-from mmdet.apis.test import collect_results_cpu, collect_results_gpu
-import matplotlib.pyplot as plt
-
+from robustdetector.utils.patch import load_patch
+from robustdetector.utils.adv_clock.patch_gen import PatchApplier, PatchTransformer
 
 target_class = 14
 patch_applier = PatchApplier().cuda()

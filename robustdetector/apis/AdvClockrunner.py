@@ -1,26 +1,20 @@
-import copy
-
-import matplotlib.pyplot as plt
 import torch
 from torch.optim import lr_scheduler
 from mmcv.runner import EpochBasedRunner, RUNNERS
-from typing import Any
 import time
 from mmcv.runner import OptimizerHook
 from mmcv.runner.hooks import HOOKS, Hook
-import logging
-from typing import (Any, Callable, Dict, List, Optional, Tuple, Union,
-                    no_type_check)
+from typing import (Any, Dict, Union)
 import mmcv
-from robustdetector.apis.robustutils import perturbupdater
-from robustdetector.apis.patch import load_patch, save_patch
-from robustdetector.adv_clock.patch_gen import PatchApplier, PatchTransformer, SmoothTV
+from robustdetector.utils.patch import load_patch, save_patch
+from robustdetector.utils.adv_clock.patch_gen import PatchApplier, PatchTransformer, SmoothTV
 import torch.nn.functional as F
 
 from itertools import chain
 import os
 
-lr = 5e-2
+lr = 1e-1
+# lr = 1e-2
 momentum = 0.9
 target_class = 14
 img_w = 72
@@ -47,7 +41,7 @@ class AdvClockRunner(EpochBasedRunner):
         self.TVLoss = SmoothTV()
         self.loss = AdvClockLoss()
 
-        self.dir = '/'.join(kwargs['meta']['config'].split('resume_from')[1].split('\n')[0].split('\'')[1].split('/')[:-1])
+        self.dir = '/'.join(kwargs['meta']['config'].split('resume_from')[1].split('\n')[0].split('\'')[1].split('/')[:-1]) + '_Patch'
         if not os.path.isdir(self.dir):
             os.makedirs(self.dir)
 
@@ -156,7 +150,9 @@ class AdvClockRunner(EpochBasedRunner):
 
             self.outputs['loss'].backward()
 
-            self.patch.grad.clamp_(min=-1e-2, max=1e-2)
+            # self.patch.grad.clamp_(min=-1e-2, max=1e-2)
+            self.patch.grad.clamp_(min=-1e-4, max=1e-4)
+
             self.patchoptimizer.step()
             self.patch.detach_().clip_(0, 1)
             self.patch.requires_grad_()
@@ -255,7 +251,7 @@ class AdvClockLoss():
         self.weights = torch.tensor(list(chain(*self.weights)))
 
     def forward(self, predictions, obj):
-        lossperbox = torch.pow((F.softmax(predictions, dim=-1)[:, :, -1] - 0.5).clip(max=0), 2)
+        lossperbox = torch.pow((F.softmax(predictions, dim=-1)[:, :, -1] - 0.75).clip(max=0), 2)
         self.weights = self.weights.to(lossperbox.device)
         return torch.sum(lossperbox * self.weights)
 

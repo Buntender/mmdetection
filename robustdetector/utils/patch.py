@@ -4,7 +4,6 @@ import numpy as np
 from PIL import Image
 import os
 
-#TODO move to utils
 # save the patch as numpy
 def load_patch(load_patch_name):
     return torch.tensor(np.load(load_patch_name))
