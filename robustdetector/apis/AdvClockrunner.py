@@ -13,13 +13,14 @@ import torch.nn.functional as F
 from itertools import chain
 import os
 
-lr = 1e-1
+lr = 1
 # lr = 1e-2
 momentum = 0.9
 target_class = 14
 img_w = 72
 img_h = 120
 
+#TODO make tidy
 @RUNNERS.register_module()
 class AdvClockRunner(EpochBasedRunner):
     def __init__(self, *args, **kwargs):
@@ -151,7 +152,7 @@ class AdvClockRunner(EpochBasedRunner):
             self.outputs['loss'].backward()
 
             # self.patch.grad.clamp_(min=-1e-2, max=1e-2)
-            self.patch.grad.clamp_(min=-1e-4, max=1e-4)
+            self.patch.grad.clamp_(min=-1e-3, max=1e-3)
 
             self.patchoptimizer.step()
             self.patch.detach_().clip_(0, 1)
