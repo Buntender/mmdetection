@@ -143,7 +143,8 @@ class PatchTransformer(nn.Module):
     def forward(self, adv_patch, lab_batch, height, width, do_rotate=True, rand_loc=False, scale_factor=0.25,
                 cls_label=1):
 
-        adv_patch = self.medianpooler(adv_patch) * 0.9 + adv_patch * 0.1
+        # adv_patch = self.medianpooler(adv_patch) * 0.9 + adv_patch * 0.1
+        adv_patch = self.medianpooler(adv_patch)
         patch_size = adv_patch.size(-1)
 
         # Determine size of padding

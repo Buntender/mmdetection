@@ -15,9 +15,10 @@ from mmcv.runner import get_dist_info
 from mmdet.core import encode_mask_results
 from robustdetector.apis.robustutils import perturbupdater
 
-from robustdetector.apis.patch import add_patch, load_patch
+from robustdetector.apis.patch import load_patch
 from robustdetector.adv_clock.patch_gen import PatchApplier, PatchTransformer
 from mmdet.apis.test import collect_results_cpu, collect_results_gpu
+import matplotlib.pyplot as plt
 
 
 target_class = 14
@@ -36,9 +37,16 @@ def AdcClock_single_gpu_test(model,
     PALETTE = getattr(dataset, 'PALETTE', None)
     prog_bar = mmcv.ProgressBar(len(dataset))
     # patch = load_patch("work_dirs/ssd300_voc_AdvClock_0301_varlr_Patch/29.npy").cuda()
-    patch = load_patch("work_dirs/ssd300_voc_AdvClock_0301_clsloss_Patch/99.npy").cuda()
+    # patch = load_patch("work_dirs/ssd300_voc_AdvClock_0301_clsloss_Patch/99.npy").cuda()
+    patch = load_patch("work_dirs/ssd300_voc_AdvClock_0303_clsloss_Patch/99.npy").cuda()
 
-    # plt.imshow(plt.imshow(patch.cpu().squeeze().numpy().transpose(1, 2, 0)))
+
+    # import matplotlib.pyplot as plt
+    # plt.imshow(patch.cpu().squeeze().numpy().transpose(1, 2, 0))
+
+    # from robustdetector.adv_clock.patch_gen import MedianPool2d
+    # medianpooler = MedianPool2d(5, same=True)
+    # plt.imshow(medianpooler(patch).cpu().squeeze().numpy().transpose(1, 2, 0))
 
     for i, data in enumerate(data_loader):
 

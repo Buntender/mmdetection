@@ -10,6 +10,8 @@ from typing import (Any, Callable, Dict, List, Optional, Tuple, Union,
 import mmcv
 from importlib import import_module
 from robustdetector.apis.daedalus_loss import DaedalusLoss, outputdecode
+from robustdetector.apis.robustutils import perturbupdater
+
 
 @RUNNERS.register_module()
 class CustomLossRobustRunner(EpochBasedRunner):
@@ -31,15 +33,16 @@ class CustomLossRobustRunner(EpochBasedRunner):
         for i, data_batch in enumerate(self.data_loader):
             self.data_batch = data_batch
             self._inner_iter = i
-            perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2) / self.data_batch['img_metas'][0][0]['img_norm_cfg']['std'].cuda()
-            ori = self.data_batch['img'].data[0].clone().detach()
-            self.data_batch['img'].data[0] += perturb
+
+            #TODO universal noise initializer
+            perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2).to(self.model.device)
+            ori = self.data_batch['img'].data[0].clone().detach().to(self.model.device)
+
             # for i in range(10):
             for i in range(max(min(self.epoch - 5, 10), 1)):
                 self.call_hook('before_train_iter')
-                perturb += self.attack_iter(data_batch, train_mode=True, **kwargs)
-                perturb = perturb.clamp(-8, 8)
-                perturb.detach_()
+
+                perturb = perturbupdater(perturb, self.attack_iter(data_batch, train_mode=True, **kwargs), ori, self.data_batch['img_metas'][0].data[0][0]['img_norm_cfg'])
 
                 self.data_batch['img'].data[0] = ori + perturb
                 self.data_batch['img'].data[0].detach_()
@@ -56,7 +59,7 @@ class CustomLossRobustRunner(EpochBasedRunner):
     def attack_iter(self, data_batch: Any, train_mode: bool, **kwargs) -> None:
         self.data_batch['img'].data[0].requires_grad_()
         datawrapper = lambda x: {'img': x, 'img_metas': self.data_batch['img_metas'].data[0], 'return_raw': True}
-        pred = self.loss.forward(outputdecode(self.model, self.model(**datawrapper(self.data_batch['img'].data[0]))), None)
+        pred = self.loss.forward(outputdecode(self.model, self.model(**datawrapper(self.data_batch['img'].data[0]))[0]), None)
         pred.backward()
 
-        return self.data_batch['img'].data[0].grad.clone().sign().detach()
+        return self.data_batch['img'].data[0].grad
