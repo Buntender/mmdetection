@@ -21,8 +21,8 @@ class DaedalusLoss():
         self.weights = torch.tensor(list(chain(*self.weights)))
 
     def forward(self, predictions, obj):
-        loss_c = torch.mean(torch.pow((F.softmax(predictions[0], dim=1)[:, -1] - 1), 2))
+        loss_c = torch.mean(torch.pow((F.softmax(predictions[0], dim=1)[:, -1]), 2))
         loss_l = torch.exp(2 * (predictions[1][:,:,-1] + predictions[1][:,:,-2]))
         self.weights = self.weights.to(loss_l.device)
 
-        return loss_c + torch.mean(loss_l * self.weights)
+        return -loss_c - torch.mean(loss_l * self.weights)

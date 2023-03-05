@@ -1,16 +1,9 @@
 import torch
 from mmcv.runner import EpochBasedRunner, RUNNERS
-from typing import Any
 import time
-from mmcv.runner import OptimizerHook
-from mmcv.runner.hooks import HOOKS, Hook
-import logging
-from typing import (Any, Callable, Dict, List, Optional, Tuple, Union,
-                    no_type_check)
-import mmcv
-from importlib import import_module
-from robustdetector.apis.daedalus_loss import DaedalusLoss, outputdecode
-from robustdetector.apis.robustutils import perturbupdater
+from typing import (Any)
+from robustdetector.apis.daedalus_loss import outputdecode
+from robustdetector.utils.robustutils import perturbupdater
 
 
 @RUNNERS.register_module()

@@ -5,7 +5,7 @@ from .robusttest import (robust_single_gpu_test, clsloss_single_gpu_test, bboxlo
 from .daedalustest import daedalus_single_gpu_test
 from .AdvClocktest import AdcClock_single_gpu_test
 from .daedalus_loss import DaedalusLoss
-from .robustutils import perturbupdater
+from robustdetector.utils.robustutils import perturbupdater
 
 # from .robusttest_getfeatures import (robust_multi_gpu_getfeature, clsloss_multi_gpu_getfeature, bboxloss_multi_gpu_getfeature)
 # from .robusttest_getfeatures import (robust_single_gpu_getfeature, clsloss_single_gpu_getfeature, bboxloss_single_gpu_getfeature)

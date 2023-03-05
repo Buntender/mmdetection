@@ -79,7 +79,8 @@ test_pipeline = [
 
 # optimizer
 optimizer = dict(type='SGD', lr=2e-3, momentum=0.9, weight_decay=5e-4)
-optimizer_config = dict(type=('AdvClockOptimizerHook'))
+#TODO delete custom optimizer hooks
+optimizer_config = None
 custom_hooks = [
     dict(type='NumClassCheckHook'),
     dict(type='CheckInvalidLossHook', interval=50, priority='VERY_LOW')

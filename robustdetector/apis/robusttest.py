@@ -1,19 +1,15 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import functools
 import os.path as osp
-import pickle
-import shutil
-import tempfile
 import time
 
 import mmcv
 import torch
-import torch.distributed as dist
 from mmcv.image import tensor2imgs
 from mmcv.runner import get_dist_info
 
 from mmdet.core import encode_mask_results
-from robustdetector.apis.robustutils import perturbupdater
+from robustdetector.utils.robustutils import perturbupdater
 from mmdet.apis.test import collect_results_cpu, collect_results_gpu
 
 def _robust_single_gpu_test(model,

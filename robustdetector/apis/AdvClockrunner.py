@@ -205,6 +205,7 @@ class AdvClockRunner(EpochBasedRunner):
         self.register_hook(hook, priority='ABOVE_NORMAL')
 
 #TODO delete the hook
+#TODO stop saving models
 @HOOKS.register_module()
 class AdvClockOptimizerHook(OptimizerHook):
     def after_train_iter(self, runner):

@@ -93,7 +93,11 @@ data = dict(
         pipeline=test_pipeline),
     test=dict(
         type=dataset_type,
-        ann_file=data_root + 'VOC2007/ImageSets/Main/test.txt',
+
+        # ann_file=data_root + 'VOC2007/ImageSets/Main/test.txt',
+
+        ann_file= "robustdetector/utils/test_squeezed.txt",
+
         img_prefix=data_root + 'VOC2007/',
         pipeline=test_pipeline))
 
