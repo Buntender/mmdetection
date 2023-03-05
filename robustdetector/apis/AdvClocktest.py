@@ -27,17 +27,22 @@ def AdcClock_single_gpu_test(model,
     prog_bar = mmcv.ProgressBar(len(dataset))
     # patch = load_patch("work_dirs/ssd300_voc_AdvClock_0301_varlr_Patch/29.npy").cuda()
     # patch = load_patch("work_dirs/ssd300_voc_AdvClock_0301_clsloss_Patch/99.npy").cuda()
-    patch = load_patch("work_dirs/ssd300_voc_AdvClock_0304_Patch/26.npy").cuda()
+    patch = load_patch("work_dirs/ssd300_voc_AdvClock_0304_Robust_Patch/90.npy").cuda()
 
 
     # import matplotlib.pyplot as plt
     # plt.imshow(patch.cpu().squeeze().numpy().transpose(1, 2, 0))
 
-    # from robustdetector.adv_clock.patch_gen import MedianPool2d
-    # medianpooler = MedianPool2d(5, same=True)
-    # plt.imshow(medianpooler(patch).cpu().squeeze().numpy().transpose(1, 2, 0))
+    from robustdetector.utils.adv_clock.patch_gen import MedianPool2d
+    medianpooler = MedianPool2d(5, same=True)
+    plt.imshow(medianpooler(patch).cpu().squeeze().numpy().transpose(1, 2, 0))
 
+    std = None
+    mean = None
     for i, data in enumerate(data_loader):
+        if std == None:
+            std = torch.tensor(data['img_metas'][0].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).cuda()
+            mean = torch.tensor(data['img_metas'][0].data[0][0]['img_norm_cfg']['mean']).view(1, -1, 1, 1).cuda()
 
         bsz, _, height, width = data['img'][0].data[0].shape
         lab_batch = []
@@ -68,12 +73,9 @@ def AdcClock_single_gpu_test(model,
                     sum += lab_batch[ptr].size(0)
                 bbox2img[cur] = ptr
 
-            img_std = torch.tensor(data['img_metas'][0].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).cuda()
-            img_mean = torch.tensor(data['img_metas'][0].data[0][0]['img_norm_cfg']['mean']).view(1, -1, 1, 1).cuda()
-
-            img = data['img'][0].data[0].cuda() * img_std + img_mean
+            img = data['img'][0].data[0].cuda() * std + mean
             data['img'][0].data[0] = patch_applier(img, adv_batch.cuda(), bbox2img)
-            data['img'][0].data[0] = ((data['img'][0].data[0] - img_mean) / img_std).cpu()
+            data['img'][0].data[0] = ((data['img'][0].data[0] - mean) / std).cpu()
 
         with torch.no_grad():
             datarefine = {'img': data['img'][0].data, 'img_metas': [data['img_metas'][0].data[0]]}

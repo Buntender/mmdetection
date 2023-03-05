@@ -48,23 +48,8 @@ val_pipeline = [
         ])
 ]
 
-test_pipeline = [
-    dict(type='LoadImageFromFile'),
-    dict(
-        type='MultiScaleFlipAug',
-        img_scale=(300, 300),
-        flip=False,
-        transforms=[
-            dict(type='Resize', keep_ratio=False),
-            dict(type='Normalize', **img_norm_cfg),
-            dict(type='ImageToTensor', keys=['img']),
-            dict(type='Collect', keys=['img']),
-        ])
-]
-
 # test_pipeline = [
 #     dict(type='LoadImageFromFile'),
-#     dict(type='LoadAnnotations', with_bbox=True),
 #     dict(
 #         type='MultiScaleFlipAug',
 #         img_scale=(300, 300),
@@ -72,10 +57,25 @@ test_pipeline = [
 #         transforms=[
 #             dict(type='Resize', keep_ratio=False),
 #             dict(type='Normalize', **img_norm_cfg),
-#             dict(type='DefaultFormatBundle'),
-#             dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels']),
+#             dict(type='ImageToTensor', keys=['img']),
+#             dict(type='Collect', keys=['img']),
 #         ])
 # ]
+
+test_pipeline = [
+    dict(type='LoadImageFromFile'),
+    dict(type='LoadAnnotations', with_bbox=True),
+    dict(
+        type='MultiScaleFlipAug',
+        img_scale=(300, 300),
+        flip=False,
+        transforms=[
+            dict(type='Resize', keep_ratio=False),
+            dict(type='Normalize', **img_norm_cfg),
+            dict(type='DefaultFormatBundle'),
+            dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels']),
+        ])
+]
 
 # optimizer
 optimizer = dict(type='SGD', lr=2e-3, momentum=0.9, weight_decay=5e-4)

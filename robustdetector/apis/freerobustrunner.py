@@ -19,11 +19,18 @@ class FreeRobustRunner(EpochBasedRunner):
         self._max_iters = self._max_epochs * len(self.data_loader)
         self.call_hook('before_train_epoch')
         time.sleep(2)  # Prevent possible deadlock during epoch transition
+
+        std = None
+        mean = None
         for i, data_batch in enumerate(self.data_loader):
+            if std == None:
+                std = torch.tensor(self.data_batch['img_metas'].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).to(self.model.device)
+                mean = torch.tensor(data_batch['img_metas'].data[0][0]['img_norm_cfg']['mean']).view(1, -1, 1, 1).to(self.model.device)
+
             self.data_batch = data_batch
             self._inner_iter = i
 
-            perturb = (self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2).to(self.model.device) / torch.tensor(self.data_batch['img_metas'].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).to(self.model.device))
+            perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2).to(self.model.device) / std
             ori = self.data_batch['img'].data[0].clone().detach().to(self.model.device)
             # perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2).to(self.model.src_device_obj)
             # ori = self.data_batch['img'].data[0].clone().detach().to(self.model.src_device_obj)
@@ -48,6 +55,7 @@ class FreeRobustRunner(EpochBasedRunner):
         self.call_hook('after_train_epoch')
         self._epoch += 1
 
+    #TODO see if val is working
     def val(self, data_loader, **kwargs):
         self.model.eval()
         self.mode = 'val'

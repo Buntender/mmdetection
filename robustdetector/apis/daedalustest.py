@@ -26,8 +26,14 @@ def daedalus_single_gpu_test(model,
     dataset = data_loader.dataset
     PALETTE = getattr(dataset, 'PALETTE', None)
     prog_bar = mmcv.ProgressBar(len(dataset))
+    loss = DaedalusLoss()
+
+    std = None
     for i, data in enumerate(data_loader):
-        perturb = data['img'][0].data[0].new(data['img'][0].data[0].size()).uniform_(-2, 2).cuda() / data['img_metas'][0][0]['img_norm_cfg']['std'].cuda()
+        if std == None:
+            std = torch.tensor(data['img_metas'][0].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).cuda()
+
+        perturb = data['img'][0].data[0].new(data['img'][0].data[0].size()).uniform_(-2, 2).cuda() / std
         ori = data['img'][0].data[0].clone().detach().cuda()
 
         for r in range(10):
@@ -36,7 +42,7 @@ def daedalus_single_gpu_test(model,
             data['img'][0].data[0].requires_grad_()
 
             datawrapper = lambda x: {'img': x, 'img_metas': data['img_metas'][0].data[0], 'return_raw': True}
-            pred = DaedalusLoss.forward(outputdecode(model, model(**datawrapper(data['img'][0].data[0]))[0]), None)
+            pred = loss.forward(outputdecode(model, model(**datawrapper(data['img'][0].data[0]))), None)
             pred.backward()
 
             perturb = perturbupdater(perturb, data['img'][0].data[0].grad.cuda(), ori, data['img_metas'][0].data[0][0]['img_norm_cfg'])

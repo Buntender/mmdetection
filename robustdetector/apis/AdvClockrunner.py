@@ -13,14 +13,15 @@ import torch.nn.functional as F
 from itertools import chain
 import os
 
-lr = 1
-# lr = 1e-2
+# lr = 1
+lr = 1e-2
 momentum = 0.9
 target_class = 14
 img_w = 72
 img_h = 120
 
 #TODO make tidy
+#TODO test on single/multi card
 @RUNNERS.register_module()
 class AdvClockRunner(EpochBasedRunner):
     def __init__(self, *args, **kwargs):
@@ -57,7 +58,13 @@ class AdvClockRunner(EpochBasedRunner):
 
         curtime = time.time()
 
+        std = None
+        mean = None
         for i, data_batch in enumerate(self.data_loader):
+            if std == None:
+                std = torch.tensor(data_batch['img_metas'].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).cuda()
+                mean = torch.tensor(data_batch['img_metas'].data[0][0]['img_norm_cfg']['mean']).view(1, -1, 1, 1).cuda()
+
             self._inner_iter = i
 
             bsz, _, height, width = data_batch['img'].data[0].shape
@@ -90,12 +97,9 @@ class AdvClockRunner(EpochBasedRunner):
                     sum += lab_batch[ptr].size(0)
                 bbox2img[cur] = ptr
 
-            img_std = torch.tensor(data_batch['img_metas'].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).cuda()
-            img_mean = torch.tensor(data_batch['img_metas'].data[0][0]['img_norm_cfg']['mean']).view(1, -1, 1, 1).cuda()
-
-            img = data_batch['img'].data[0].cuda() * img_std + img_mean
+            img = data_batch['img'].data[0].cuda() * std + mean
             data_batch['img'].data[0] = self.patch_applier(img, adv_batch.cuda(), bbox2img)
-            data_batch['img'].data[0] = ((data_batch['img'].data[0] - img_mean) / img_std).cpu()
+            data_batch['img'].data[0] = ((data_batch['img'].data[0] - mean) / std).cpu()
 
             # plt.imshow(adv_batch[0].cpu().detach().numpy().transpose(1,2,0))
             # plt.imshow(data_batch['img'].data[0][0].detach().numpy().transpose(1,2,0))
@@ -170,37 +174,6 @@ class AdvClockRunner(EpochBasedRunner):
         self.patchscheduler.step()
         self._epoch += 1
 
-    def val(self, data_loader, **kwargs):
-        self.model.eval()
-        self.mode = 'val'
-        self.data_loader = data_loader
-        self.call_hook('before_val_epoch')
-        time.sleep(2)  # Prevent possible deadlock during epoch transition
-        # for i, data_batch in enumerate(self.data_loader):
-        #     self.data_batch = data_batch
-        #     self._inner_iter = i
-        #     self.call_hook('before_val_iter')
-
-            # perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2).to(self.model.device)
-            # ori = self.data_batch['img'].data[0].clone().cuda().to(self.model.device)
-
-            # for i in range(10):
-            #     self.data_batch['img'].data[0] = (ori + perturb).cpu()
-            #     self.data_batch['img'].data[0].detach_()
-            #     self.data_batch['img'].data[0].requires_grad_()
-            #     self.run_iter(data_batch, train_mode=True, **kwargs)
-            #     self.optimizer.zero_grad()
-            #     # self.outputs['loss'].backward(retain_graph=True)
-            #     self.outputs['loss'].backward()
-            #
-            #     perturb = perturbupdater(perturb, self.data_batch['img'].data[0].grad.to(self.model.device), ori, self.data_batch['img_metas'][0].data[0][0]['img_norm_cfg'])
-
-            # with torch.no_grad():
-            #     self.run_iter(data_batch, train_mode=False)
-            # self.call_hook('after_val_iter')
-            # del self.data_batch
-        # self.call_hook('after_val_epoch')
-
     def attack_iter(self, data_batch: Any, train_mode: bool, **kwargs) -> None:
         self.data_batch['img'].data[0].requires_grad_()
         datawrapper = lambda x: {'img': x, 'img_metas': self.data_batch['img_metas'].data[0], 'return_raw': True}
@@ -213,7 +186,8 @@ class AdvClockRunner(EpochBasedRunner):
         tvloss = self.TVLoss(self.patch)
 
         # self.outputs['loss'] = loss + tvloss
-        self.outputs['loss'] = loss + dummy + tvloss * 0.1
+        self.outputs['loss'] = loss + dummy + tvloss * max(self.epoch - 40, 0) * 0.01
+        # self.outputs['loss'] = loss + dummy + tvloss * max(self.epoch - 65, 0) * 0.01
         self.outputs['log_vars']['adv loss'] = float(loss)
         self.outputs['log_vars']['tv loss'] = float(tvloss)
 
@@ -230,18 +204,11 @@ class AdvClockRunner(EpochBasedRunner):
             hook = optimizer_config
         self.register_hook(hook, priority='ABOVE_NORMAL')
 
-
+#TODO delete the hook
 @HOOKS.register_module()
 class AdvClockOptimizerHook(OptimizerHook):
     def after_train_iter(self, runner):
         pass
-        # if self.grad_clip is not None:
-        #     grad_norm = self.clip_grads(runner.model.parameters())
-        #     if grad_norm is not None:
-        #         # Add grad norm to the logger
-        #         runner.log_buffer.update({'grad_norm': float(grad_norm)},
-        #                                  runner.outputs['num_samples'])
-        # runner.optimizer.step()
 
 class AdvClockLoss():
     bboxes = [5776, 2166, 600, 150, 36, 4]

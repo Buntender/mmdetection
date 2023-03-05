@@ -1,42 +1,28 @@
 import torch
 import torch.nn.functional as F
+from itertools import chain
 
-# TODO: Make it faster
 def outputdecode(model, res):
-    bbox_pred_img_list = []
-    cls_score_img_list = []
+    cls_score_img_list = [layer.permute(0, 2, 3, 1).reshape(layer.size(0), -1, model.module.bbox_head.cls_out_channels)
+                          for layer in res[0]]
+    bbox_pred_img_list = [layer.permute(0, 2, 3, 1).reshape(layer.size(0), -1, 4)
+                          for layer in res[1]]
 
-    for img_id in range(res[0][0].size(0)):
-        cls_score_list = [item[img_id, :] for item in res[0]]
-        bbox_pred_list = [item[img_id, :] for item in res[1]]
-
-        bbox_pred_parsed_list = []
-        cls_score_parsed_list = []
-
-        for level_idx, (cls_score, bbox_pred) in enumerate(zip(cls_score_list, bbox_pred_list)):
-            bbox_pred_parsed_list += bbox_pred.permute(1, 2, 0).reshape(-1, 4)
-            cls_score_parsed_list += cls_score.permute(1, 2, 0).reshape(-1, model.module.bbox_head.cls_out_channels)
-
-        bbox_pred_img_list.append(torch.stack(bbox_pred_parsed_list))
-        cls_score_img_list.append(torch.stack(cls_score_parsed_list))
-
-    return [torch.stack(bbox_pred_img_list), torch.stack(cls_score_img_list)]
+    return [torch.cat(cls_score_img_list, dim=1), torch.cat(bbox_pred_img_list, dim=1)]
 
 class DaedalusLoss():
-    @staticmethod
-    def forward(predictions, obj):
-        loss_c = torch.zeros((predictions[0].shape[0]), device="cpu")
-        loss_l = torch.zeros((predictions[0].shape[0]), device="cpu")
+    bboxes = [5776, 2166, 600, 150, 36, 4]
+    defaultbox = [30, 60, 111, 162, 213, 264]
+    imgsize = 300
 
-        for xi, (bbox, conf) in enumerate(zip(predictions[0], predictions[1])):  # image index, image inference
-            loss_c[xi] = torch.sum(torch.pow((F.softmax(conf, dim=1)[:, -1] - 1), 2))
-            loss_l[xi] = torch.sum(bbox[:, 2] * bbox[:, 3])
+    def __init__(self):
+        deafaultsize = [pow(item / self.imgsize, 2) for item in self.defaultbox]
+        self.weights = [[deafaultsize[item]] * self.bboxes[item] for item in range(len(self.bboxes))]
+        self.weights = torch.tensor(list(chain(*self.weights)))
 
-        if sum(loss_l) > 0 and sum(loss_c) > 0:
-            while sum(loss_l) > sum(loss_c):
-                loss_l /= 10
+    def forward(self, predictions, obj):
+        loss_c = torch.mean(torch.pow((F.softmax(predictions[0], dim=1)[:, -1] - 1), 2))
+        loss_l = torch.exp(2 * (predictions[1][:,:,-1] + predictions[1][:,:,-2]))
+        self.weights = self.weights.to(loss_l.device)
 
-            while sum(loss_c) > sum(loss_l):
-                loss_c /= 10
-
-        return sum(loss_c + loss_l / 10)
+        return loss_c + torch.mean(loss_l * self.weights)

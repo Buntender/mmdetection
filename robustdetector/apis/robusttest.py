@@ -29,8 +29,12 @@ def _robust_single_gpu_test(model,
     PALETTE = getattr(dataset, 'PALETTE', None)
     prog_bar = mmcv.ProgressBar(len(dataset))
 
+    std = None
     for i, data in enumerate(data_loader):
-        perturb = data['img'][0].data[0].new(data['img'][0].data[0].size()).uniform_(-2, 2).cuda() / data['img_metas'][0][0]['img_norm_cfg']['std'].cuda()
+        if std == None:
+            std = torch.tensor(data['img_metas'][0].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).cuda()
+
+        perturb = data['img'][0].data[0].new(data['img'][0].data[0].size()).uniform_(-2, 2).cuda() / std
         ori = data['img'][0].data[0].clone().detach().cuda()
 
         for r in range(10):
@@ -126,8 +130,16 @@ def _robust_multi_gpu_test(model, data_loader, tmpdir=None, gpu_collect=False,
     if rank == 0:
         prog_bar = mmcv.ProgressBar(len(dataset))
     time.sleep(2)  # This line can prevent deadlock problem in some cases.
+
+    std = None
+    #TODO test all attack tests
     for i, data in enumerate(data_loader):
         data = model.scatter(data, None, model.device_ids)[0][0]
+
+        if std == None:
+            std = torch.tensor(data['img_metas'][0].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).to(
+                data['img'][0].device)
+
         perturb = data['img'][0].new(data['img'][0].size()).uniform_(-2, 2) / data['img_metas'][0][0]['img_norm_cfg']['std'].cuda()
         ori = data['img'][0].clone().detach()
 

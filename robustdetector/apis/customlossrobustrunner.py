@@ -30,12 +30,17 @@ class CustomLossRobustRunner(EpochBasedRunner):
         self._max_iters = self._max_epochs * len(self.data_loader)
         self.call_hook('before_train_epoch')
         time.sleep(2)  # Prevent possible deadlock during epoch transition
+
+        std = None
         for i, data_batch in enumerate(self.data_loader):
+            if std == None:
+                std = torch.tensor(data_batch['img_metas'].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).cuda()
+
             self.data_batch = data_batch
             self._inner_iter = i
 
             #TODO universal noise initializer
-            perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2).to(self.model.device)
+            perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2).to(self.model.device) /std
             ori = self.data_batch['img'].data[0].clone().detach().to(self.model.device)
 
             # for i in range(10):
