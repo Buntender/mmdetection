@@ -1,4 +1,4 @@
-from thinplate.numpy import *
+from robustdetector.utils.adv_clock.thinplate.numpy import *
 
 try:
     import torch

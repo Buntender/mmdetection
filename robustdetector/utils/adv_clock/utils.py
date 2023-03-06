@@ -1,5 +1,5 @@
-from torch._six import container_abcs
-from itertools import repeat
+# import collections.abc as container_abcs
+# from itertools import repeat
 from torch.nn.modules.utils import _pair, _quadruple
 import torch
 import torch.nn as nn
