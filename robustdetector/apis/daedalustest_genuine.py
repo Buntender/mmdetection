@@ -6,15 +6,25 @@ import torch
 from mmcv.image import tensor2imgs
 
 from mmdet.core import encode_mask_results
+from robustdetector.apis.daedalus_loss import DaedalusLoss, outputdecode
+from robustdetector.utils.robustutils import perturbupdater
 
-from robustdetector.utils.patch import load_patch
-from robustdetector.utils.adv_clock.patch_gen import PatchApplier, PatchTransformer
+#TODO change to real daedalus
+#TODO trim pycharm config
 
-target_class = 14
-patch_applier = PatchApplier().cuda()
-patch_transformer = PatchTransformer().cuda()
+UPPERBOUND = 1e5
+LOWERBOUND = 0
 
-def AdcClock_single_gpu_test(model,
+INIT_K = 100
+# INIT_K = 10
+
+BINARYSEARCHSTEP = 5
+MAXATTACKITER = 2000
+LR = 1e-2
+gamma = 0.3
+earlystop = 0.995
+
+def daedalus_single_gpu_test(model,
                     data_loader,
                     show=False,
                     out_dir=None,
@@ -25,17 +35,7 @@ def AdcClock_single_gpu_test(model,
     dataset = data_loader.dataset
     PALETTE = getattr(dataset, 'PALETTE', None)
     prog_bar = mmcv.ProgressBar(len(dataset))
-    # patch = load_patch("work_dirs/ssd300_voc_AdvClock_0301_varlr_Patch/29.npy").cuda()
-    # patch = load_patch("work_dirs/ssd300_voc_AdvClock_0301_clsloss_Patch/99.npy").cuda()
-    patch = load_patch("work_dirs/ssd300_voc_AdvClock_0304_Robust_Patch/90.npy").cuda()
-
-
-    # import matplotlib.pyplot as plt
-    # plt.imshow(patch.cpu().squeeze().numpy().transpose(1, 2, 0))
-
-    # from robustdetector.utils.adv_clock.patch_gen import MedianPool2d
-    # medianpooler = MedianPool2d(5, same=True)
-    # plt.imshow(medianpooler(patch).cpu().squeeze().numpy().transpose(1, 2, 0))
+    loss = DaedalusLoss()
 
     std = None
     mean = None
@@ -44,41 +44,56 @@ def AdcClock_single_gpu_test(model,
             std = torch.tensor(data['img_metas'][0].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).cuda()
             mean = torch.tensor(data['img_metas'][0].data[0][0]['img_norm_cfg']['mean']).view(1, -1, 1, 1).cuda()
 
-        bsz, _, height, width = data['img'][0].data[0].shape
-        lab_batch = []
-        for item in range(len(data['gt_labels'][0].data[0])):
-            bboxinimg = []
-            for obj in range(len(data['gt_labels'][0].data[0][item]) - 1, -1, -1):
-                if data['gt_labels'][0].data[0][item][obj] == target_class:
-                    bboxinimg.append(data['gt_bboxes'][0].data[0][item][obj].clone().detach())
+        perturb = torch.zeros(data['img'][0].data[0].shape).cuda()
+        arctanori = torch.arctanh((data['img'][0].data[0].clone().detach().cuda() * std + mean) * 2 / 255 - 1)
 
-            if len(bboxinimg) != 0:
-                lab_batch.append(torch.stack(bboxinimg))
+        upperbound = (torch.ones(data['img'][0].data[0].size(0)) * UPPERBOUND).cuda()
+        lowerbound = (torch.ones(data['img'][0].data[0].size(0)) * LOWERBOUND).cuda()
+        k = (torch.ones(data['img'][0].data[0].size(0)) * INIT_K).cuda()
+        init_pred = None
+
+        for attach_epoch in range(BINARYSEARCHSTEP):
+            advoptimizer = torch.optim.Adam([perturb], lr=LR)
+            perturb.requires_grad_()
+            last_losstotal = 1e5
+
+            if attach_epoch == BINARYSEARCHSTEP - 1:
+                k = upperbound.clone()
+
+            for r in range(MAXATTACKITER):
+                data['img'][0].data[0] = (((torch.tanh(arctanori + perturb) + 1) * 255 / 2 - mean) / std).cpu()
+
+                datawrapper = lambda x: {'img': x, 'img_metas': data['img_metas'][0].data[0], 'return_raw': True}
+                pred = loss.forward(outputdecode(model, model(**datawrapper(data['img'][0].data[0]))), None)
+                l2loss = torch.sum(torch.pow(torch.tanh(arctanori + perturb) - torch.tanh(arctanori), 2)) / (255 * 255)
+
+                losstotal = pred + k * l2loss
+
+                advoptimizer.zero_grad()
+                losstotal.backward()
+                advoptimizer.step()
+
+                if r % 200 == 0:
+                    if losstotal > last_losstotal * earlystop:
+                        break
+
+                    last_losstotal = losstotal.clone().detach()
+                    if init_pred == None:
+                        init_pred = pred.clone().detach()
+
+            if pred < init_pred * (1 - gamma):
+                lowerbound = k.clone()
+                if upperbound == UPPERBOUND:
+                    k = k*2
+                else:
+                    k = (upperbound + lowerbound) / 2
             else:
-                lab_batch.append(torch.zeros([0, 4]))
-
-        if torch.cat(lab_batch).size(0) != 0:
-
-            adv_batch = patch_transformer(
-                patch, torch.cat(lab_batch).cuda(), height, width,
-                rand_loc=True, scale_factor=0.22,
-                cls_label=int(target_class)).mul_(255)
-
-            bbox2img = [0] * torch.cat(lab_batch).size(0)
-            sum = 0
-            ptr = -1
-            for cur in range(len(bbox2img)):
-                while cur >= sum:
-                    ptr += 1
-                    sum += lab_batch[ptr].size(0)
-                bbox2img[cur] = ptr
-
-            img = data['img'][0].data[0].cuda() * std + mean
-            data['img'][0].data[0] = patch_applier(img, adv_batch.cuda(), bbox2img)
-            data['img'][0].data[0] = ((data['img'][0].data[0] - mean) / std).cpu()
+                upperbound = k.clone()
+                k = (upperbound + lowerbound) / 2
 
         with torch.no_grad():
-            datarefine = {'img': data['img'][0].data, 'img_metas': [data['img_metas'][0].data[0]]}
+            data['img'][0].data[0].detach_()
+            datarefine = {'img': [data['img'][0].data[0]], 'img_metas': [data['img_metas'][0].data[0]]}
             # result = model(return_loss=False, rescale=True, **datarefine)
             result = model(return_loss=False, rescale=True, **datarefine)
 
