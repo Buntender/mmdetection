@@ -6,7 +6,7 @@ _base_ = [
 dataset_type = 'VOCDataset'
 data_root = 'data/VOCdevkit/'
 model = dict(bbox_head = dict(num_classes = 20))
-runner = dict(type='AdvClockRunner', max_epochs=100)
+runner = dict(type='AdvClockRunner', max_epochs=125)
 # find_unused_parameters = True
 
 img_norm_cfg = dict(mean=[123.675, 116.28, 103.53], std=[1, 1, 1], to_rgb=True)
@@ -48,6 +48,8 @@ val_pipeline = [
         ])
 ]
 
+#TODO use same config in train & test
+
 # test_pipeline = [
 #     dict(type='LoadImageFromFile'),
 #     dict(
@@ -79,14 +81,17 @@ test_pipeline = [
 
 # optimizer
 optimizer = dict(type='SGD', lr=2e-3, momentum=0.9, weight_decay=5e-4)
+optimizer_config = dict(type=('AdvClockOptimizerHook'))
+
 #TODO delete custom optimizer hooks
-optimizer_config = None
+# optimizer_config = None
+
 custom_hooks = [
     dict(type='NumClassCheckHook'),
     dict(type='CheckInvalidLossHook', interval=50, priority='VERY_LOW')
 ]
 data = dict(
-    samples_per_gpu=32,
+    samples_per_gpu=16,
     workers_per_gpu=4,
     shuffle = False,
     train=dict(
@@ -153,4 +158,4 @@ data = dict(
 # NOTE: `auto_scale_lr` is for automatically scaling LR,
 # USER SHOULD NOT CHANGE ITS VALUES.
 # base_batch_size = (8 GPUs) x (8 samples per GPU)
-auto_scale_lr = dict(base_batch_size=32*2)
+auto_scale_lr = dict(base_batch_size=16*2)

@@ -6,11 +6,11 @@ import torch
 from mmcv.image import tensor2imgs
 
 from mmdet.core import encode_mask_results
-from robustdetector.apis.daedalus_loss import DaedalusLoss, outputdecode
-from robustdetector.utils.robustutils import perturbupdater
+import os
+import numpy as np
 
-#TODO change to real daedalus
-#TODO trim pycharm config
+perturbation_dir = "work_dirs/ssd300_voc_Robust_daedalus_res/perturbation"
+
 def daedalus_single_gpu_test(model,
                     data_loader,
                     show=False,
@@ -22,30 +22,14 @@ def daedalus_single_gpu_test(model,
     dataset = data_loader.dataset
     PALETTE = getattr(dataset, 'PALETTE', None)
     prog_bar = mmcv.ProgressBar(len(dataset))
-    loss = DaedalusLoss()
 
-    std = None
     for i, data in enumerate(data_loader):
-        if std == None:
-            std = torch.tensor(data['img_metas'][0].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).cuda()
-
-        perturb = data['img'][0].data[0].new(data['img'][0].data[0].size()).uniform_(-2, 2).cuda() / std
-        ori = data['img'][0].data[0].clone().detach().cuda()
-
-        for r in range(10):
-            data['img'][0].data[0] = (ori + perturb).cpu()
-            data['img'][0].data[0].detach_()
-            data['img'][0].data[0].requires_grad_()
-
-            datawrapper = lambda x: {'img': x, 'img_metas': data['img_metas'][0].data[0], 'return_raw': True}
-            pred = loss.forward(outputdecode(model, model(**datawrapper(data['img'][0].data[0]))), None)
-            pred.backward()
-
-            perturb = perturbupdater(perturb, data['img'][0].data[0].grad.cuda(), ori, data['img_metas'][0].data[0][0]['img_norm_cfg'])
+        patch_name = os.path.join(perturbation_dir, data['img_metas'][0].data[0][0]['ori_filename'].split('/')[-1].split('.')[0]) + '.npy'
+        perturb = torch.tensor(np.load(patch_name))
 
         with torch.no_grad():
             data['img'][0].data[0].detach_()
-            datarefine = {'img': [data['img'][0].data[0]], 'img_metas': [data['img_metas'][0].data[0]]}
+            datarefine = {'img': [data['img'][0].data[0] + perturb], 'img_metas': [data['img_metas'][0].data[0]]}
             # result = model(return_loss=False, rescale=True, **datarefine)
             result = model(return_loss=False, rescale=True, **datarefine)
 

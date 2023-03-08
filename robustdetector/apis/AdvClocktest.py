@@ -14,6 +14,7 @@ target_class = 14
 patch_applier = PatchApplier().cuda()
 patch_transformer = PatchTransformer().cuda()
 
+#TODO cross validation of clean and robust
 def AdcClock_single_gpu_test(model,
                     data_loader,
                     show=False,
@@ -27,8 +28,8 @@ def AdcClock_single_gpu_test(model,
     prog_bar = mmcv.ProgressBar(len(dataset))
     # patch = load_patch("work_dirs/ssd300_voc_AdvClock_0301_varlr_Patch/29.npy").cuda()
     # patch = load_patch("work_dirs/ssd300_voc_AdvClock_0301_clsloss_Patch/99.npy").cuda()
-    patch = load_patch("work_dirs/ssd300_voc_AdvClock_0304_Robust_Patch/90.npy").cuda()
-
+    patch = load_patch("work_dirs/ssd300_voc_AdvClock_0304_Robust_Patch/113.npy").cuda()
+    # patch = load_patch("work_dirs/ssd300_voc_AdvClock_0304_Patch/99.npy").cuda()
 
     # import matplotlib.pyplot as plt
     # plt.imshow(patch.cpu().squeeze().numpy().transpose(1, 2, 0))
@@ -62,7 +63,7 @@ def AdcClock_single_gpu_test(model,
             adv_batch = patch_transformer(
                 patch, torch.cat(lab_batch).cuda(), height, width,
                 rand_loc=True, scale_factor=0.22,
-                cls_label=int(target_class)).mul_(255)
+                cls_label=int(target_class))
 
             bbox2img = [0] * torch.cat(lab_batch).size(0)
             sum = 0

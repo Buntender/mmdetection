@@ -120,8 +120,8 @@ def parse_args():
 def main(single_gpu_test, multi_gpu_test = None, dir_name = None, epoch = None):
     args = parse_args()
 
-    if args.checkpoint.find('_epoch_') != -1:
-        args.checkpoint = args.checkpoint.replace('_epoch_', str(epoch))
+    # if args.checkpoint.find('_epoch_') != -1:
+    #     args.checkpoint = args.checkpoint.replace('_epoch_', str(epoch))
 
     assert args.out or args.eval or args.format_only or args.show \
         or args.show_dir, \

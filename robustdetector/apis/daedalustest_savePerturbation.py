@@ -22,18 +22,22 @@ import numpy as np
 # LR = 1e-2
 # gamma = 0.1
 
-# INIT_K = 200
-# LR = 1e-2
-# gamma = 0.2
+INIT_K = 200
+LR = 1e-2
+gamma = 0.2
 
 #ROBUST
+# INIT_K = 10
+# LR = 1e-1
+# gamma = 0.05
+
 # INIT_K = 5
 # LR = 1e-1
 # gamma = 0.1
 
-INIT_K = 0.5
-LR = 1e-1
-gamma = 0.2
+# INIT_K = 0.5
+# LR = 1e-1
+# gamma = 0.2
 
 UPPERBOUND = 1e5
 LOWERBOUND = 0

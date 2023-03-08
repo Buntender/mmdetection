@@ -13,8 +13,18 @@ import torch.nn.functional as F
 from itertools import chain
 import os
 
-# lr = 1
-lr = 1e-2
+#CLEAN
+# lr = 10
+# TVLOSS_START_EPOCH = 40
+# BG_THRESHOLD = 0.5
+# RATIO = 0.001
+
+#ROBUST
+lr = 1e6
+TVLOSS_START_EPOCH = 65
+BG_THRESHOLD = 0.3
+RATIO = 0.0001
+
 momentum = 0.9
 target_class = 14
 img_w = 72
@@ -27,7 +37,7 @@ class AdvClockRunner(EpochBasedRunner):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.model.training:
-            self.patch = torch.nn.Parameter(torch.rand(1, 3, img_h, img_w), requires_grad=True) / 1000
+            self.patch = torch.nn.Parameter(torch.rand(1, 3, img_h, img_w), requires_grad=True)
         # testing
         else:
             self.patch = load_patch()
@@ -55,8 +65,6 @@ class AdvClockRunner(EpochBasedRunner):
         self.call_hook('before_train_epoch')
         time.sleep(2)  # Prevent possible deadlock during epoch transition
         self.outputs = {"loss":None, "log_vars":{}}
-
-        curtime = time.time()
 
         std = None
         mean = None
@@ -86,7 +94,7 @@ class AdvClockRunner(EpochBasedRunner):
             adv_batch = self.patch_transformer(
                 self.patch, torch.cat(lab_batch).cuda(), height, width,
                 rand_loc=True, scale_factor=0.22,
-                cls_label=int(target_class)).mul_(255)
+                cls_label=int(target_class))
 
             bbox2img = [0] * torch.cat(lab_batch).size(0)
             sum = 0
@@ -156,10 +164,10 @@ class AdvClockRunner(EpochBasedRunner):
             self.outputs['loss'].backward()
 
             # self.patch.grad.clamp_(min=-1e-2, max=1e-2)
-            self.patch.grad.clamp_(min=-1e-3, max=1e-3)
+            # self.patch.grad.clamp_(min=-1e-3, max=1e-3)
 
             self.patchoptimizer.step()
-            self.patch.detach_().clip_(0, 1)
+            self.patch.detach_().clip_(0, 255)
             self.patch.requires_grad_()
 
             # print(f"after backprop:{time.time() - curtime}")
@@ -183,11 +191,10 @@ class AdvClockRunner(EpochBasedRunner):
 
         dummy = sum([torch.sum(layer) for layer in pred[1]]) * 0
 
-        tvloss = self.TVLoss(self.patch)
+        tvloss = self.TVLoss(self.patch) / 255 / 255
 
         # self.outputs['loss'] = loss + tvloss
-        self.outputs['loss'] = loss + dummy + tvloss * max(self.epoch - 40, 0) * 0.01
-        # self.outputs['loss'] = loss + dummy + tvloss * max(self.epoch - 65, 0) * 0.01
+        self.outputs['loss'] = loss + dummy + tvloss * max(self.epoch - TVLOSS_START_EPOCH, 0) * RATIO
         self.outputs['log_vars']['adv loss'] = float(loss)
         self.outputs['log_vars']['tv loss'] = float(tvloss)
 
@@ -220,9 +227,9 @@ class AdvClockLoss():
         self.weights = torch.tensor(list(chain(*self.weights)))
 
     def forward(self, predictions, obj):
-        lossperbox = torch.pow((F.softmax(predictions, dim=-1)[:, :, -1] - 0.75).clip(max=0), 2)
+        lossperbox = torch.pow((torch.max(F.softmax(predictions, dim=-1)[:, :, 0:-1], dim=-1)[0] - BG_THRESHOLD).clip(min=0), 2)
         self.weights = self.weights.to(lossperbox.device)
-        return torch.sum(lossperbox * self.weights)
+        return torch.mean(torch.sum(lossperbox * self.weights, dim=1))
 
 def outputdecode(model, res):
     cls_score_img_list = [layer.permute(0, 2, 3, 1).reshape(layer.size(0), -1, model.module.bbox_head.cls_out_channels) for layer in res[0]]

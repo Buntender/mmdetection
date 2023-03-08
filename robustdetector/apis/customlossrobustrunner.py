@@ -2,10 +2,10 @@ import torch
 from mmcv.runner import EpochBasedRunner, RUNNERS
 import time
 from typing import (Any)
-from robustdetector.apis.daedalus_loss import outputdecode
+from robustdetector.utils.daedalus_loss import outputdecode
 from robustdetector.utils.robustutils import perturbupdater
 
-
+#TODO change to FGSM runner
 @RUNNERS.register_module()
 class CustomLossRobustRunner(EpochBasedRunner):
     def __init__(self, *kargs, **kwargs):
@@ -24,23 +24,25 @@ class CustomLossRobustRunner(EpochBasedRunner):
         self.call_hook('before_train_epoch')
         time.sleep(2)  # Prevent possible deadlock during epoch transition
 
+        mean = None
         std = None
         for i, data_batch in enumerate(self.data_loader):
             if std == None:
-                std = torch.tensor(data_batch['img_metas'].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).cuda()
+                mean = torch.tensor(data_batch['img_metas'].data[0][0]['img_norm_cfg']['mean']).view(1, -1, 1, 1).to(self.model.device)
+                std = torch.tensor(data_batch['img_metas'].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).to(self.model.device)
 
             self.data_batch = data_batch
             self._inner_iter = i
 
             #TODO universal noise initializer
-            perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2).to(self.model.device) /std
+            perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2).to(self.model.device)
             ori = self.data_batch['img'].data[0].clone().detach().to(self.model.device)
 
             # for i in range(10):
             for i in range(max(min(self.epoch - 5, 10), 1)):
                 self.call_hook('before_train_iter')
 
-                perturb = perturbupdater(perturb, self.attack_iter(data_batch, train_mode=True, **kwargs), ori, self.data_batch['img_metas'][0].data[0][0]['img_norm_cfg'])
+                perturb = perturbupdater(perturb, self.attack_iter(data_batch, train_mode=True, **kwargs), ori, mean, std)
 
                 self.data_batch['img'].data[0] = ori + perturb
                 self.data_batch['img'].data[0].detach_()

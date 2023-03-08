@@ -26,9 +26,11 @@ def _robust_single_gpu_test(model,
     prog_bar = mmcv.ProgressBar(len(dataset))
 
     std = None
+    mean = None
     for i, data in enumerate(data_loader):
         if std == None:
             std = torch.tensor(data['img_metas'][0].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).cuda()
+            mean = torch.tensor(data['img_metas'][0].data[0][0]['img_norm_cfg']['mean']).view(1, -1, 1, 1).cuda()
 
         perturb = data['img'][0].data[0].new(data['img'][0].data[0].size()).uniform_(-2, 2).cuda() / std
         ori = data['img'][0].data[0].clone().detach().cuda()
@@ -41,7 +43,7 @@ def _robust_single_gpu_test(model,
             loss = model(img=data['img'][0], img_metas=data['img_metas'][0], gt_bboxes=data['gt_bboxes'][0], gt_labels=data['gt_labels'][0])
             # loss = model(**data)
             backpropfunc(loss, model)
-            perturb = perturbupdater(perturb, data['img'][0].data[0].grad.cuda(), ori, data['img_metas'][0].data[0][0]['img_norm_cfg'])
+            perturb = perturbupdater(perturb, data['img'][0].data[0].grad.cuda(), ori, mean, std)
 
         with torch.no_grad():
             datarefine = {'img': [data['img'][0].data[0]], 'img_metas': [data['img_metas'][0].data[0]]}
@@ -128,6 +130,7 @@ def _robust_multi_gpu_test(model, data_loader, tmpdir=None, gpu_collect=False,
     time.sleep(2)  # This line can prevent deadlock problem in some cases.
 
     std = None
+    mean = None
     #TODO test all attack tests
     for i, data in enumerate(data_loader):
         data = model.scatter(data, None, model.device_ids)[0][0]
@@ -135,8 +138,10 @@ def _robust_multi_gpu_test(model, data_loader, tmpdir=None, gpu_collect=False,
         if std == None:
             std = torch.tensor(data['img_metas'][0].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).to(
                 data['img'][0].device)
+            mean = torch.tensor(data['img_metas'][0].data[0][0]['img_norm_cfg']['mean']).view(1, -1, 1, 1).to(
+                data['img'][0].device)
 
-        perturb = data['img'][0].new(data['img'][0].size()).uniform_(-2, 2) / data['img_metas'][0][0]['img_norm_cfg']['std'].cuda()
+        perturb = data['img'][0].new(data['img'][0].size()).uniform_(-2, 2)
         ori = data['img'][0].clone().detach()
 
         for r in range(10):
@@ -147,7 +152,7 @@ def _robust_multi_gpu_test(model, data_loader, tmpdir=None, gpu_collect=False,
             loss = model(img=data['img'][0], img_metas=data['img_metas'][0], gt_bboxes=data['gt_bboxes'][0], gt_labels=data['gt_labels'][0])
             # loss = model(**data)
             backpropfunc(loss, model)
-            perturb = perturbupdater(perturb, data['img'][0].grad.to(perturb.device), ori, data['img_metas'][0][0]['img_norm_cfg'])
+            perturb = perturbupdater(perturb, data['img'][0].grad.to(perturb.device), ori, mean, std)
 
         with torch.no_grad():
             datarefine = {'img': [data['img'][0]], 'img_metas': [data['img_metas'][0]]}
@@ -178,9 +183,9 @@ def _robust_multi_gpu_test(model, data_loader, tmpdir=None, gpu_collect=False,
     return results
 
 robust_single_gpu_test = functools.partial(_robust_single_gpu_test, backpropfunc= lambda loss, model : model.module._parse_losses(loss)[0].backward())
-clsloss_single_gpu_test = functools.partial(_robust_single_gpu_test, backpropfunc= lambda loss, model : loss['loss_cls'][0].backward())
-bboxloss_single_gpu_test = functools.partial(_robust_single_gpu_test, backpropfunc= lambda loss, model : loss['loss_bbox'][0].backward())
+clsloss_single_gpu_test = functools.partial(_robust_single_gpu_test, backpropfunc= lambda loss, model : (sum(loss['loss_cls']) + sum(loss['loss_bbox']) * 0).backward())
+bboxloss_single_gpu_test = functools.partial(_robust_single_gpu_test, backpropfunc= lambda loss, model : (sum(loss['loss_cls']) * 0 + sum(loss['loss_bbox'])).backward())
 
 robust_multi_gpu_test = functools.partial(_robust_multi_gpu_test, backpropfunc= lambda loss, model : model.module._parse_losses(loss)[0].backward())
-clsloss_multi_gpu_test = functools.partial(_robust_multi_gpu_test, backpropfunc= lambda loss, model : (loss['loss_cls'][0] + loss['loss_bbox'][0] * 0).backward())
-bboxloss_multi_gpu_test = functools.partial(_robust_multi_gpu_test, backpropfunc= lambda loss, model : (loss['loss_cls'][0] * 0 + loss['loss_bbox'][0]).backward())
+clsloss_multi_gpu_test = functools.partial(_robust_multi_gpu_test, backpropfunc= lambda loss, model : (sum(loss['loss_cls']) + sum(loss['loss_bbox']) * 0).backward())
+bboxloss_multi_gpu_test = functools.partial(_robust_multi_gpu_test, backpropfunc= lambda loss, model : (sum(loss['loss_cls']) * 0 + sum(loss['loss_bbox'])).backward())

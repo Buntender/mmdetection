@@ -22,32 +22,7 @@ import torchvision.utils as tvutils
 
 from .utils import MedianPool2d
 import robustdetector.utils.adv_clock.thinplate as tps
-
-
-class MinimizeObjectness_twostage(nn.Module):
-    """MaxProbExtractor: extracts max class probability for class from two-stage object detector.
-    """
-
-    def __init__(self, cls_id, num_cls):
-        super(MinimizeObjectness_twostage, self).__init__()
-        self.cls_id = cls_id
-        self.num_cls = num_cls
-
-    def forward(self, pred_objectness_logits):
-        # pred_objectness_logits (list[Tensor]): A list of L tensors. Tensor i has shape (B, A, Hi, Wi).
-        batch_size = pred_objectness_logits[0].size(0)
-        # Convert to a list of objness scores of different scales [B, A*Hi*Wi]
-        weights = [1.0, 1.0, 1.0, 1.0, 1.0]
-        weights = [1.0, 0.8, 0.6, 0.4, 0.2]
-
-        pred_objectness = [(obj_level.view(batch_size, -1) + 1).clamp(min=0) for obj_level in pred_objectness_logits]
-        pred_objectness = [w * obj_level.mean(1).unsqueeze(1) for obj_level, w in zip(pred_objectness, weights)]
-        pred_objectness = torch.cat(pred_objectness, dim=1)
-        det_loss = pred_objectness ** 2
-        det_loss = det_loss.mean(1)
-
-        return det_loss, None
-
+from robustdetector.utils.adv_clock.thinplate.pytorch import tps_grid
 
 class TotalVariation(nn.Module):
     """TotalVariation: calculates the total variation of a patch.
@@ -169,11 +144,12 @@ class PatchTransformer(nn.Module):
         brightness = brightness.cuda()
 
         # Create random noise tensor
-        noise = torch.cuda.FloatTensor(adv_batch.size()).uniform_(-1, 1) * self.noise_factor
+        noise = torch.cuda.FloatTensor(adv_batch.size()).uniform_(0, 255) * self.noise_factor
 
         # Apply contrast/brightness/noise, clamp
         adv_batch = adv_batch * contrast + brightness + noise
-        adv_batch = torch.clamp(adv_batch, 0.000001, 0.99999)
+        adv_batch = torch.clamp(adv_batch, 0.0001, 254.999)
+        # adv_batch = torch.clamp(adv_batch, 0.000001, 0.99999)
 
         # perspective transformations
         dis_scale = lab_batch.size(0)
@@ -187,7 +163,7 @@ class PatchTransformer(nn.Module):
             theta, dst = self.get_tps_thetas(dis_scale)
             img = adv_batch.clone()
 
-            grid = tps.torch.tps_grid(theta.cuda(), dst.cuda(), (img.size(0), 1, adv_width, adv_height))
+            grid = tps_grid(theta.cuda(), dst.cuda(), (img.size(0), 1, adv_width, adv_height))
             adv_batch = F.grid_sample(img, grid.cuda(), padding_mode='border')
             adv_batch = adv_batch.view(lab_batch.size(0), 3, adv_width, adv_height)
 
