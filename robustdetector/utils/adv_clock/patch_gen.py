@@ -21,7 +21,7 @@ import kornia
 import torchvision.utils as tvutils
 
 from .utils import MedianPool2d
-import thinplate as tps
+import robustdetector.utils.adv_clock.thinplate as tps
 
 
 class MinimizeObjectness_twostage(nn.Module):
