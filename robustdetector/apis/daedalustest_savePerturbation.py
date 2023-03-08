@@ -6,22 +6,41 @@ import torch
 from mmcv.image import tensor2imgs
 
 from mmdet.core import encode_mask_results
-from robustdetector.apis.daedalus_loss import DaedalusLoss, outputdecode
-from robustdetector.utils.robustutils import perturbupdater
+from robustdetector.utils.daedalus_loss import DaedalusLoss, outputdecode
+import os
+import numpy as np
 
 #TODO change to real daedalus
 #TODO trim pycharm config
 
+#CLEAN
+# INIT_K = 2000
+# LR = 1e-2
+# gamma = 0.05
+
+# INIT_K = 1000
+# LR = 1e-2
+# gamma = 0.1
+
+# INIT_K = 200
+# LR = 1e-2
+# gamma = 0.2
+
+#ROBUST
+# INIT_K = 5
+# LR = 1e-1
+# gamma = 0.1
+
+INIT_K = 50
+LR = 1e-1
+gamma = 0.2
+
 UPPERBOUND = 1e5
 LOWERBOUND = 0
 
-INIT_K = 100
-# INIT_K = 10
-
-BINARYSEARCHSTEP = 5
+BINARYSEARCHSTEP = 7
 MAXATTACKITER = 2000
-LR = 1e-2
-gamma = 0.3
+
 earlystop = 0.995
 
 def daedalus_single_gpu_test(model,
@@ -36,6 +55,10 @@ def daedalus_single_gpu_test(model,
     PALETTE = getattr(dataset, 'PALETTE', None)
     prog_bar = mmcv.ProgressBar(len(dataset))
     loss = DaedalusLoss()
+
+    perturbation_dir = os.path.join(out_dir, 'perturbation')
+    if not os.path.exists(perturbation_dir):
+        os.makedirs(perturbation_dir)
 
     std = None
     mean = None
@@ -57,7 +80,7 @@ def daedalus_single_gpu_test(model,
             perturb.requires_grad_()
             last_losstotal = 1e5
 
-            if attach_epoch == BINARYSEARCHSTEP - 1:
+            if attach_epoch == BINARYSEARCHSTEP - 1 and upperbound != UPPERBOUND:
                 k = upperbound.clone()
 
             for r in range(MAXATTACKITER):
@@ -65,7 +88,7 @@ def daedalus_single_gpu_test(model,
 
                 datawrapper = lambda x: {'img': x, 'img_metas': data['img_metas'][0].data[0], 'return_raw': True}
                 pred = loss.forward(outputdecode(model, model(**datawrapper(data['img'][0].data[0]))), None)
-                l2loss = torch.sum(torch.pow(torch.tanh(arctanori + perturb) - torch.tanh(arctanori), 2)) / (255 * 255)
+                l2loss = torch.sum(torch.pow(torch.tanh(arctanori + perturb) - torch.tanh(arctanori), 2)) / (255 * 255 * 2 * 2)
 
                 losstotal = pred + k * l2loss
 
@@ -96,6 +119,10 @@ def daedalus_single_gpu_test(model,
             datarefine = {'img': [data['img'][0].data[0]], 'img_metas': [data['img_metas'][0].data[0]]}
             # result = model(return_loss=False, rescale=True, **datarefine)
             result = model(return_loss=False, rescale=True, **datarefine)
+
+        save_patch_name = os.path.join(perturbation_dir, data['img_metas'][0].data[0][0]['ori_filename'].split('/')[-1].split('.')[0]) + '.npy'
+        print("save img as ", save_patch_name)
+        np.save(save_patch_name, (torch.tanh(arctanori + perturb) - torch.tanh(arctanori)).detach().cpu().numpy())
 
         batch_size = len(result)
         if show or out_dir:
