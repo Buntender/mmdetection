@@ -31,7 +31,7 @@ import numpy as np
 # LR = 1e-1
 # gamma = 0.1
 
-INIT_K = 50
+INIT_K = 0.5
 LR = 1e-1
 gamma = 0.2
 

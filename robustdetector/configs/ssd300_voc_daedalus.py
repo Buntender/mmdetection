@@ -96,7 +96,7 @@ data = dict(
 
         # ann_file=data_root + 'VOC2007/ImageSets/Main/test.txt',
 
-        ann_file= "robustdetector/utils/test_squeezed.txt",
+        ann_file= "robustdetector/utils/test_from0_to200.txt",
 
         img_prefix=data_root + 'VOC2007/',
         pipeline=test_pipeline))
