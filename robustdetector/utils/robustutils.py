@@ -8,3 +8,8 @@ def perturbupdater(perturb, grad, ori, mean, std):
     perturb = perturb.clamp(-8, 8)
     perturb = ((ori * std + perturb + mean).clamp(0, 255) - ori * std - mean)
     return perturb.detach()
+
+def FGSMupdater(grad, ori, mean, std):
+    perturb = 8 * grad.sign()
+    perturb = ((ori * std + perturb + mean).clamp(0, 255) - ori * std - mean)
+    return perturb.detach()

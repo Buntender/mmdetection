@@ -28,10 +28,12 @@ def AdcClock_single_gpu_test(model,
     prog_bar = mmcv.ProgressBar(len(dataset))
     # patch = load_patch("work_dirs/ssd300_voc_AdvClock_0301_varlr_Patch/29.npy").cuda()
     # patch = load_patch("work_dirs/ssd300_voc_AdvClock_0301_clsloss_Patch/99.npy").cuda()
-    patch = load_patch("work_dirs/ssd300_voc_AdvClock_0304_Robust_Patch/113.npy").cuda()
-    # patch = load_patch("work_dirs/ssd300_voc_AdvClock_0304_Patch/99.npy").cuda()
+    # patch = torch.ones(load_patch("work_dirs/ssd300_voc_AdvClock_0304_Robust_Patch/124.npy").size()).cuda() * 255
+    # patch = load_patch("work_dirs/ssd300_voc_AdvClock_0304_Robust_Patch/124.npy").cuda()
 
-    # import matplotlib.pyplot as plt
+    patch = load_patch("work_dirs/ssd300_voc_AdvClock_0304_Patch/99.npy").cuda()
+
+    import matplotlib.pyplot as plt
     # plt.imshow(patch.cpu().squeeze().numpy().transpose(1, 2, 0))
 
     # from robustdetector.utils.adv_clock.patch_gen import MedianPool2d

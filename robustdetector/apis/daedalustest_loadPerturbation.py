@@ -9,7 +9,7 @@ from mmdet.core import encode_mask_results
 import os
 import numpy as np
 
-perturbation_dir = "work_dirs/ssd300_voc_Robust_daedalus_res/perturbation"
+perturbation_dir = "work_dirs/ssd300_voc_daedalus_gamma020_res/perturbation"
 
 def daedalus_single_gpu_test(model,
                     data_loader,
@@ -25,7 +25,7 @@ def daedalus_single_gpu_test(model,
 
     for i, data in enumerate(data_loader):
         patch_name = os.path.join(perturbation_dir, data['img_metas'][0].data[0][0]['ori_filename'].split('/')[-1].split('.')[0]) + '.npy'
-        perturb = torch.tensor(np.load(patch_name))
+        perturb = torch.tensor(np.load(patch_name)) * 255 / 2
 
         with torch.no_grad():
             data['img'][0].data[0].detach_()

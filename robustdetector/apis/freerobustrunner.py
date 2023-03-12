@@ -20,12 +20,12 @@ class FreeRobustRunner(EpochBasedRunner):
         std = None
         mean = None
         for i, data_batch in enumerate(self.data_loader):
+            self.data_batch = data_batch
+            self._inner_iter = i
+
             if std == None:
                 std = torch.tensor(self.data_batch['img_metas'].data[0][0]['img_norm_cfg']['std']).view(1, -1, 1, 1).to(self.model.device)
                 mean = torch.tensor(data_batch['img_metas'].data[0][0]['img_norm_cfg']['mean']).view(1, -1, 1, 1).to(self.model.device)
-
-            self.data_batch = data_batch
-            self._inner_iter = i
 
             perturb = self.data_batch['img'].data[0].new(self.data_batch['img'].data[0].size()).uniform_(-2, 2).to(self.model.device)
             ori = self.data_batch['img'].data[0].clone().detach().to(self.model.device)

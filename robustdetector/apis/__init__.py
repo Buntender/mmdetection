@@ -1,6 +1,7 @@
 from .freerobustrunner import (FreeRobustRunner, FreeRobustOptimizerHook)
 from .AdvClockrunner import (AdvClockRunner, AdvClockOptimizerHook)
 from .customlossrobustrunner import CustomLossRobustRunner
+from .mtdrunner import MTDRunner
 from .robusttest import (robust_single_gpu_test, clsloss_single_gpu_test, bboxloss_single_gpu_test, robust_multi_gpu_test, clsloss_multi_gpu_test, bboxloss_multi_gpu_test)
 from .daedalustest_savePerturbation import daedalus_single_gpu_test as daedalus_single_gpu_test_save
 from .daedalustest_loadPerturbation import daedalus_single_gpu_test as daedalus_single_gpu_test_load
@@ -15,6 +16,7 @@ from robustdetector.utils.robustutils import perturbupdater
 
 __all__ = [
     'FreeRobustRunner', 'FreeRobustOptimizerHook',
+    'MTDOptimizerHook'
     'AdvClockRunner', 'AdvClockOptimizerHook',
     'CustomLossRobustRunner', 'DaedalusLoss', 'daedalus_single_gpu_test_save', 'daedalus_single_gpu_test_load',
     'robust_single_gpu_test', 'clsloss_single_gpu_test', 'bboxloss_single_gpu_test',

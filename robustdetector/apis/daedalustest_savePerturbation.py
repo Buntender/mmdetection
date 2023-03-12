@@ -92,6 +92,8 @@ def daedalus_single_gpu_test(model,
 
                 datawrapper = lambda x: {'img': x, 'img_metas': data['img_metas'][0].data[0], 'return_raw': True}
                 pred = loss.forward(outputdecode(model, model(**datawrapper(data['img'][0].data[0]))), None)
+
+                #TODO shouldn't have /255 here
                 l2loss = torch.sum(torch.pow(torch.tanh(arctanori + perturb) - torch.tanh(arctanori), 2)) / (255 * 255 * 2 * 2)
 
                 losstotal = pred + k * l2loss
